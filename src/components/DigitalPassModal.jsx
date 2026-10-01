@@ -42,7 +42,7 @@ export default function DigitalPassModal({ booking, onClose }) {
   const handleDownloadPdf = async () => {
     try {
       setDownloadingPdf(true);
-      await exportPassToPdf('royal-festival-pass', booking.ref || booking.id, booking.holderName);
+      await exportPassToPdf(booking, booking.ref || booking.id, booking.holderName);
       setPdfSuccess(true);
       setTimeout(() => setPdfSuccess(false), 3000);
     } catch (err) {

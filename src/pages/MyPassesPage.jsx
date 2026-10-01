@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getLocalBookings, subscribeToStore } from '../lib/storage';
-import { Ticket, ArrowRight, Share2, CheckCircle2, AlertCircle, Clock, Mail, LogIn, Plus } from 'lucide-react';
+import { Ticket, ArrowRight, Share2, CheckCircle2, AlertCircle, Clock, Mail, LogIn, Plus, Download } from 'lucide-react';
 import DigitalPassModal from '../components/DigitalPassModal';
+import { exportPassToPdf } from '../lib/pdfGenerator';
 
 export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth }) {
   const [allBookings, setAllBookings] = useState([]);
@@ -201,6 +202,16 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
                       <span>{isPending ? 'VIEW PASS DETAILS' : 'VIEW TICKET & QR'}</span>
                       <ArrowRight className="w-3 h-3" />
                     </button>
+
+                    {!isPending && (
+                      <button
+                        onClick={() => exportPassToPdf(b)}
+                        className="p-2 bg-[#141a32] border border-[#2a3656] hover:border-[#f6c86a] text-[#f6c86a] hover:text-white rounded-lg transition-colors shrink-0"
+                        title="Download Pass as PDF"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    )}
 
                     <button
                       onClick={() => {
