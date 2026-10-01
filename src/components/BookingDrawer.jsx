@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText, ChevronDown } from 'lucide-react';
+import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText, ChevronDown, QrCode } from 'lucide-react';
 import { saveBooking, PROMO_CODES, getPaymentSettings, getPassTiers, subscribeToStore } from '../lib/storage';
 
 export default function BookingDrawer({
@@ -171,8 +171,8 @@ export default function BookingDrawer({
     setTimeout(() => setCopiedUpi(false), 2000);
   };
 
-  // Payment
-  const [paymentMethod, setPaymentMethod] = useState('UPI');
+  // Payment (Only QR)
+  const [paymentMethod, setPaymentMethod] = useState('UPI_QR');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Calculations
@@ -541,26 +541,24 @@ export default function BookingDrawer({
               </span>
             </div>
 
-            {/* Payment Method Tabs */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: 'UPI', label: 'UPI / QR' },
-                { id: 'Card', label: 'CARD' },
-                { id: 'NetBanking', label: 'NET BANK' }
-              ].map(m => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setPaymentMethod(m.id)}
-                  className={`p-2 font-label-stamp text-xs uppercase rounded border transition-all ${
-                    paymentMethod === m.id
-                      ? 'bg-[#1d4ed8] text-white border-[#38bdf8] font-bold'
-                      : 'bg-[#141a32] text-[#a5b4d4] border-[#2a3656]'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
+            {/* ONLY QR CODE PAYMENT BANNER */}
+            <div className="flex items-center justify-between p-3 bg-[#0a153d] border border-[#38bdf8]/50 rounded-xl">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#1d4ed8]/30 border border-[#38bdf8] flex items-center justify-center text-[#f6c86a] shrink-0">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-label-ticket text-xs uppercase text-white font-bold block leading-none mb-1">
+                    OFFICIAL PAYMENT METHOD: UPI QR
+                  </span>
+                  <span className="text-[10px] text-[#a5b4d4] block">
+                    Scan with any UPI app & upload screenshot proof
+                  </span>
+                </div>
+              </div>
+              <span className="bg-emerald-950 text-emerald-300 border border-emerald-500 text-[10px] px-2.5 py-0.5 rounded font-mono font-bold tracking-wider shrink-0">
+                ONLY QR
+              </span>
             </div>
 
             {/* Payment Display - UPI QR & Bank Transfer */}
@@ -602,7 +600,7 @@ export default function BookingDrawer({
                 </button>
               </div>
               <span className="text-[10px] text-[#a5b4d4]">
-                Accepts Google Pay, PhonePe, Paytm, BHIM, Cred & NetBanking
+                Scan & pay via Google Pay, PhonePe, Paytm, BHIM, Cred or any UPI QR scanner
               </span>
             </div>
 
