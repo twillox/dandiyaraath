@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Poster Print & Physical Ticket Styling */
+.poster-shadow-dark {
+  box-shadow: 3px 3px 0px 0px #060d24;
+}
+.poster-shadow-light {
+  box-shadow: 3px 3px 0px 0px #dce1ff;
+}
+.poster-shadow-gold {
+  box-shadow: 3px 3px 0px 0px #f6c86a;
+}
+.poster-shadow-sapphire {
+  box-shadow: 3px 3px 0px 0px #2563eb;
+}
+.rubber-stamp {
+  transform: rotate(-4deg);
+  border: 2px solid currentColor;
+  box-shadow: 0 0 0 1px currentColor;
+}
+
+/* Hide scrollbars but keep functional */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Indie festival logo typography styles */
+.indie-logo-glow {
+  text-shadow: 0 0 20px rgba(56, 189, 248, 0.4), 0 0 40px rgba(29, 78, 216, 0.6);
+}
+
+/* Hologram ticket effect */
+.hologram-strip {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(246, 200, 106, 0.4) 25%,
+    rgba(56, 189, 248, 0.4) 50%,
+    rgba(220, 225, 255, 0.3) 75%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  background-size: 200% 200%;
+  animation: hologramShift 4s ease infinite;
+}
+
+@keyframes hologramShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* === ANIMATED ACCENTS & MICRO-MOTIONS === */
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 24s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.95; transform: scale(1.06); }
+}
+.animate-pulse-glow {
+  animation: pulseGlow 2.8s ease-in-out infinite;
+}
+
+@keyframes livePing {
+  0% { transform: scale(1); opacity: 0.9; }
+  75%, 100% { transform: scale(2.4); opacity: 0; }
+}
+.animate-live-ping {
+  animation: livePing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spinSlow 20s linear infinite;
+}
+
+@keyframes vibeBreathe {
+  0%, 100% { letter-spacing: -0.01em; transform: scale(1); }
+  50% { letter-spacing: 0.01em; transform: scale(1.015); }
+}
+.animate-vibe-breathe {
+  animation: vibeBreathe 4.5s ease-in-out infinite;
+}
+
+@keyframes underlineGrow {
+  0%, 100% { width: 3.5rem; opacity: 0.8; }
+  50% { width: 6.5rem; opacity: 1; }
+}
+.animate-underline-grow {
+  animation: underlineGrow 3.5s ease-in-out infinite;
+}
+
+/* Smooth selection and focus rings */
+*:focus-visible {
+  outline: 2px solid #f6c86a;
+  outline-offset: 2px;
+}
+
+/* Card Snap Scroll Styling */
+.carousel-item {
+  scroll-snap-align: start;
+}
+
+/* Print styles for digital pass */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-pass, #printable-pass * {
+    visibility: visible;
+  }
+  #printable-pass {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white !important;
+    color: black !important;
+  }
+}
