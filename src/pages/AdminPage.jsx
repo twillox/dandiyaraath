@@ -60,7 +60,8 @@ import {
   AlertTriangle,
   Upload,
   Tag,
-  CreditCard
+  CreditCard,
+  Copy
 } from 'lucide-react';
 
 export default function AdminPage({ currentUser, onOpenAuth }) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText } from 'lucide-react';
-import { saveBooking, PROMO_CODES, getPaymentSettings, subscribeToStore } from '../lib/storage';
+import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText, ChevronDown } from 'lucide-react';
+import { saveBooking, PROMO_CODES, getPaymentSettings, getPassTiers, subscribeToStore } from '../lib/storage';
 
 export default function BookingDrawer({
   isOpen,
@@ -63,9 +63,44 @@ export default function BookingDrawer({
   }
 
   const [step, setStep] = useState(1);
+  const [passTiers, setPassTiers] = useState(getPassTiers());
   const [passTitle, setPassTitle] = useState(initialPassTitle);
   const [unitPrice, setUnitPrice] = useState(initialPrice);
   const [quantity, setQuantity] = useState(1);
+
+  // Sync pass tiers from storage & reactive store
+  useEffect(() => {
+    setPassTiers(getPassTiers());
+    const unsub = subscribeToStore(() => {
+      setPassTiers(getPassTiers());
+    });
+    return unsub;
+  }, []);
+
+  // Sync when drawer opens or initial pass props change
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      const tiers = getPassTiers();
+      const matched = tiers.find(t => 
+        t.name.toLowerCase() === (initialPassTitle || '').toLowerCase()
+      );
+      if (matched) {
+        setPassTitle(matched.name);
+        setUnitPrice(matched.price);
+      } else if (initialPassTitle) {
+        setPassTitle(initialPassTitle);
+        setUnitPrice(initialPrice);
+      } else if (tiers.length > 0) {
+        setPassTitle(tiers[0].name);
+        setUnitPrice(tiers[0].price);
+      }
+    }
+  }, [isOpen, initialPassTitle, initialPrice]);
+
+  const currentTier = passTiers.find(
+    t => t.name.toLowerCase() === (passTitle || '').toLowerCase()
+  );
 
   // Promo code
   const [promoInput, setPromoInput] = useState('');
@@ -260,8 +295,61 @@ export default function BookingDrawer({
         {/* STEP 1: QUANTITY & PASS INFO */}
         {step === 1 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3.5 bg-[#141a32] border border-[#2a3656] rounded">
-              <span className="font-label-ticket text-xs uppercase text-[#a5b4d4]">UNIT TICKET PRICE</span>
+            {/* PASS SELECTION DROPDOWN */}
+            <div>
+              <label className="font-label-ticket text-xs uppercase text-[#a5b4d4] block mb-1.5 font-bold flex items-center justify-between">
+                <span>SELECT FESTIVAL PASS TYPE *</span>
+                {currentTier?.badge && (
+                  <span className="px-2 py-0.5 bg-[#1d4ed8]/40 border border-[#38bdf8] text-[#38bdf8] text-[9px] font-label-stamp uppercase font-bold rounded">
+                    {currentTier.badge}
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <select
+                  value={passTitle}
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    setPassTitle(selectedName);
+                    const matched = passTiers.find(t => t.name.toLowerCase() === selectedName.toLowerCase());
+                    if (matched) {
+                      setUnitPrice(matched.price);
+                    }
+                  }}
+                  className="w-full bg-[#141a32] border-2 border-[#38bdf8]/60 hover:border-[#38bdf8] focus:border-[#f6c86a] p-3 text-sm text-white font-bold rounded-xl outline-none transition-colors appearance-none cursor-pointer pr-10 shadow-md"
+                >
+                  {passTiers.map((tier) => (
+                    <option key={tier.id} value={tier.name} className="bg-[#0b1229] text-white py-2">
+                      {tier.name} — ₹{tier.price}/- {tier.badge ? `(${tier.badge})` : ''}
+                    </option>
+                  ))}
+                  {!passTiers.some(t => t.name.toLowerCase() === (passTitle || '').toLowerCase()) && (
+                    <option value={passTitle} className="bg-[#0b1229] text-white py-2">
+                      {passTitle} — ₹{unitPrice}/-
+                    </option>
+                  )}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#38bdf8]">
+                  <ChevronDown className="w-5 h-5" />
+                </div>
+              </div>
+
+              {currentTier?.description && (
+                <p className="text-[11px] text-[#a5b4d4] mt-1.5 leading-relaxed px-1">
+                  {currentTier.description}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-3.5 bg-[#141a32] border border-[#2a3656] rounded-xl">
+              <div>
+                <span className="font-label-ticket text-xs uppercase text-[#a5b4d4] block font-bold">UNIT TICKET PRICE</span>
+                {currentTier?.originalPrice && currentTier.originalPrice > unitPrice && (
+                  <span className="text-[11px] text-slate-400 line-through font-mono">
+                    ₹{currentTier.originalPrice}/-
+                  </span>
+                )}
+              </div>
               <span className="font-headline-sm text-2xl text-[#f6c86a]">₹{unitPrice}/-</span>
             </div>
 
