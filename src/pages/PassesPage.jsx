@@ -26,7 +26,7 @@ export default function PassesPage({ onOpenBooking, currentUser }) {
       kids: 'No',
       single: 'No',
       couple: 'No',
-      vip: 'Yes (Gate 01 VIP)',
+      vip: 'Yes (VIP Fast-Track)',
       squad: 'Priority Squad Lane'
     },
     {

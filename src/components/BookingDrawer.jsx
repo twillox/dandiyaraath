@@ -319,7 +319,7 @@ export default function BookingDrawer({
           createdAt: new Date().toISOString(),
           checkedIn: false,
           checkedInAt: null,
-          gate: 'Gate 02 - Turnstile A'
+          gate: 'Main Entrance'
         };
 
         saveBooking(newBooking);

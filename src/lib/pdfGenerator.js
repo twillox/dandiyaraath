@@ -1,35 +1,27 @@
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import QRCode from 'qrcode';
 
 /**
- * Generates an exquisite, uncompressed, high-resolution royal festival ticket PDF.
- * Renders an offscreen, perfectly-proportioned 600px layout so mobile viewports
- * NEVER scramble the layout, clip borders, or omit the QR code!
+ * Generates a clean, basic white-themed festival entry pass PDF.
+ * Directly embeds the scannable QR code into jsPDF, guaranteeing
+ * that the QR code is 100% visible and never missing or scrambled!
  *
- * @param {object|string} bookingOrElementId - The booking data object or DOM element ID
+ * @param {object} booking - Booking data object
  * @param {string} fallbackRef - Booking reference
  * @param {string} fallbackHolder - Attendee name
  * @returns {Promise<boolean>}
  */
-export async function exportPassToPdf(bookingOrElementId, fallbackRef = 'PASS', fallbackHolder = 'Attendee') {
+export async function exportPassToPdf(booking, fallbackRef = 'PASS', fallbackHolder = 'Attendee') {
   try {
-    let booking = null;
-
-    if (typeof bookingOrElementId === 'object' && bookingOrElementId !== null) {
-      booking = bookingOrElementId;
-    }
-
-    // Reference and holder name
     const bookingRef = (booking?.ref || booking?.id || fallbackRef || 'DND-HYD-PASS').toUpperCase();
     const holderName = (booking?.holderName || fallbackHolder || 'FESTIVAL GUEST').toUpperCase();
-    const passTitle = (booking?.passTitle || 'ROYAL FESTIVAL PASS').toUpperCase();
+    const passTitle = (booking?.passTitle || 'FESTIVAL PASS').toUpperCase();
     const quantity = booking?.quantity || 1;
-    const gate = (booking?.gate || 'GATE 02 - MAIN ENTRANCE').toUpperCase();
+    const email = booking?.email || booking?.userEmail || '';
     const isCheckedIn = booking?.checkedIn === true;
     const checkedInAt = booking?.checkedInAt ? new Date(booking.checkedInAt).toLocaleTimeString() : null;
 
-    // Generate guaranteed high-res Base64 QR code Data URL
+    // Generate high-resolution Base64 QR Code
     const qrPayload = JSON.stringify({
       ref: bookingRef,
       holder: holderName,
@@ -40,276 +32,211 @@ export async function exportPassToPdf(bookingOrElementId, fallbackRef = 'PASS', 
     });
 
     const qrDataUrl = await QRCode.toDataURL(qrPayload, {
-      width: 400,
+      width: 600,
       margin: 1,
       color: {
-        dark: '#070d1e',
+        dark: '#0b1229',
         light: '#ffffff'
       },
       errorCorrectionLevel: 'H'
     });
 
-    // Create an offscreen, fixed 600px container with strict pixel dimensions
-    // This completely eliminates mobile viewport squishing, text wrapping bugs, and CORS issues!
-    const ticketContainer = document.createElement('div');
-    ticketContainer.style.position = 'fixed';
-    ticketContainer.style.left = '-9999px';
-    ticketContainer.style.top = '0';
-    ticketContainer.style.width = '600px';
-    ticketContainer.style.backgroundColor = '#070d1e';
-    ticketContainer.style.color = '#ffffff';
-    ticketContainer.style.fontFamily = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-    ticketContainer.style.boxSizing = 'border-box';
-    ticketContainer.style.zIndex = '-999';
-
-    ticketContainer.innerHTML = `
-      <div style="
-        width: 600px;
-        background: linear-gradient(180deg, #0b1430 0%, #070d22 45%, #050a18 100%);
-        border: 3px double #d4af37;
-        border-radius: 20px;
-        padding: 24px;
-        box-sizing: border-box;
-        position: relative;
-        overflow: hidden;
-      ">
-        <!-- Top Ornamental Ribbon -->
-        <div style="text-align: center; margin-bottom: 14px;">
-          <div style="
-            display: inline-block;
-            background: linear-gradient(90deg, rgba(212,175,55,0.2), rgba(246,200,106,0.35), rgba(212,175,55,0.2));
-            border: 1px solid #f6c86a;
-            border-radius: 20px;
-            padding: 4px 18px;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 2px;
-            color: #f6c86a;
-            text-transform: uppercase;
-          ">
-            ✦ OFFICIAL FESTIVAL TURNSTILE PASS ✦
-          </div>
-        </div>
-
-        <!-- Festival Title & Venue -->
-        <div style="text-align: center; padding-bottom: 16px; border-bottom: 2px dashed rgba(212,175,55,0.4);">
-          <div style="font-size: 28px; font-weight: 900; letter-spacing: 2px; color: #ffffff; text-transform: uppercase; margin: 0;">
-            DANDIYA <span style="color: #f6c86a;">रात</span> 2026
-          </div>
-          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1px; color: #38bdf8; text-transform: uppercase; margin-top: 4px;">
-            NARAPALLY CRICKET GROUND • HYDERABAD
-          </div>
-          <div style="font-size: 11px; color: #94a3b8; margin-top: 3px;">
-            15 OCTOBER 2026 • GATES OPEN 5:00 PM
-          </div>
-
-          <!-- Hologram Strip -->
-          <div style="
-            height: 6px;
-            width: 100%;
-            border-radius: 6px;
-            margin-top: 12px;
-            background: linear-gradient(90deg, #38bdf8 0%, #ec4899 25%, #f6c86a 50%, #10b981 75%, #38bdf8 100%);
-          "></div>
-        </div>
-
-        <!-- Tier Banner -->
-        <div style="text-align: center; margin-top: 16px; margin-bottom: 14px;">
-          <div style="
-            display: inline-block;
-            background: linear-gradient(90deg, #d4af37, #f6c86a, #d4af37);
-            color: #070d1e;
-            font-size: 13px;
-            font-weight: 900;
-            letter-spacing: 1.5px;
-            padding: 6px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(212,175,55,0.3);
-          ">
-            ★ ${passTitle} ★
-          </div>
-          <div style="font-size: 22px; font-weight: 800; color: #ffffff; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
-            ${holderName}
-          </div>
-        </div>
-
-        <!-- 4-Box Clean Metadata Grid -->
-        <div style="
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin-bottom: 16px;
-        ">
-          <div style="background: rgba(14, 22, 51, 0.8); border: 1px solid rgba(212,175,55,0.35); border-radius: 10px; padding: 10px 14px;">
-            <div style="font-size: 9px; font-weight: 700; color: #f6c86a; letter-spacing: 1px; text-transform: uppercase;">BOOKING REFERENCE</div>
-            <div style="font-size: 13px; font-family: monospace; font-weight: 700; color: #38bdf8; margin-top: 3px;">${bookingRef}</div>
-          </div>
-
-          <div style="background: rgba(14, 22, 51, 0.8); border: 1px solid rgba(212,175,55,0.35); border-radius: 10px; padding: 10px 14px;">
-            <div style="font-size: 9px; font-weight: 700; color: #f6c86a; letter-spacing: 1px; text-transform: uppercase;">PERSONS ADMITTED</div>
-            <div style="font-size: 13px; font-weight: 700; color: #ffffff; margin-top: 3px;">${quantity} PERSON${quantity > 1 ? 'S' : ''}</div>
-          </div>
-
-          <div style="background: rgba(14, 22, 51, 0.8); border: 1px solid rgba(212,175,55,0.35); border-radius: 10px; padding: 10px 14px;">
-            <div style="font-size: 9px; font-weight: 700; color: #f6c86a; letter-spacing: 1px; text-transform: uppercase;">ENTRY TURNSTILE</div>
-            <div style="font-size: 13px; font-weight: 700; color: #ffffff; margin-top: 3px;">${gate}</div>
-          </div>
-
-          <div style="background: rgba(14, 22, 51, 0.8); border: 1px solid rgba(212,175,55,0.35); border-radius: 10px; padding: 10px 14px;">
-            <div style="font-size: 9px; font-weight: 700; color: #f6c86a; letter-spacing: 1px; text-transform: uppercase;">TIMING</div>
-            <div style="font-size: 13px; font-weight: 700; color: #f6c86a; margin-top: 3px;">5:00 PM - 12:30 AM</div>
-          </div>
-        </div>
-
-        <!-- Admission Status Stamp -->
-        <div style="text-align: center; margin-bottom: 16px;">
-          ${
-            isCheckedIn
-              ? `<div style="
-                  background: rgba(153, 27, 27, 0.4);
-                  border: 2px solid #ef4444;
-                  border-radius: 10px;
-                  padding: 8px 14px;
-                  color: #fca5a5;
-                  font-weight: 800;
-                  font-size: 12px;
-                  letter-spacing: 1.5px;
-                  text-transform: uppercase;
-                ">
-                  ⚠ TICKET ALREADY CHECKED IN • ADMITTED AT ${checkedInAt || 'GATE'}
-                </div>`
-              : `<div style="
-                  background: rgba(6, 78, 59, 0.4);
-                  border: 2px solid #10b981;
-                  border-radius: 10px;
-                  padding: 8px 14px;
-                  color: #6ee7b7;
-                  font-weight: 800;
-                  font-size: 12px;
-                  letter-spacing: 1.5px;
-                  text-transform: uppercase;
-                ">
-                  ✓ VERIFIED & AUTHENTICATED • SCAN AT TURNSTILES
-                </div>`
-          }
-        </div>
-
-        <!-- High-Contrast Scannable QR Code Box -->
-        <div style="text-align: center; padding-top: 4px;">
-          <div style="
-            display: inline-block;
-            background: #ffffff;
-            padding: 12px;
-            border-radius: 16px;
-            border: 3px solid #d4af37;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-          ">
-            <img src="${qrDataUrl}" width="180" height="180" style="display: block; width: 180px; height: 180px;" alt="QR Code" />
-          </div>
-
-          <div style="font-family: monospace; font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #f6c86a; margin-top: 10px; text-transform: uppercase;">
-            TOKEN: ${bookingRef}-TURNSTILE-SECURITY
-          </div>
-        </div>
-
-        <!-- Barcode Strip -->
-        <div style="margin-top: 14px; text-align: center;">
-          <div style="
-            background: #0b1430;
-            border: 1px solid #1e294b;
-            border-radius: 6px;
-            padding: 6px 12px;
-            font-family: monospace;
-            font-size: 9px;
-            letter-spacing: 6px;
-            color: #cbd5e1;
-            display: inline-block;
-            width: 80%;
-          ">
-            ||| | ||||| || |||| ||||| | || |||| | ||| ||||| ||
-          </div>
-          <div style="font-size: 9px; color: #64748b; letter-spacing: 1px; text-transform: uppercase; margin-top: 6px;">
-            Present digital pass on phone or printed sheet at turnstiles for festival wristband.
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(ticketContainer);
-
-    // Wait a brief tick for render
-    await new Promise((resolve) => setTimeout(resolve, 80));
-
-    // Capture with html2canvas with scale 2 for retina clarity
-    const canvas = await html2canvas(ticketContainer, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#070d1e',
-      width: 600,
-      windowWidth: 600,
-      logging: false
-    });
-
-    document.body.removeChild(ticketContainer);
-
-    // Initialize portrait A4 PDF
+    // Create portrait A4 PDF
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: 'a4',
-      compress: true
+      format: 'a4'
     });
 
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const pageWidth = pdf.internal.pageSize.getWidth(); // 210 mm
+    const pageHeight = pdf.internal.pageSize.getHeight(); // 297 mm
 
-    // Dark royal festive background for full page
-    pdf.setFillColor(7, 13, 30);
-    pdf.rect(0, 0, pdfWidth, pdfHeight, 'F');
+    // Light neutral page backdrop
+    pdf.setFillColor(243, 244, 246); // slate-100
+    pdf.rect(0, 0, pageWidth, pageHeight, 'F');
 
-    // Subtle festival gold borders
-    pdf.setDrawColor(212, 175, 55);
-    pdf.setLineWidth(0.6);
-    pdf.rect(8, 8, pdfWidth - 16, pdfHeight - 16, 'S');
+    // Basic Clean White Pass Container Card
+    const cardX = 20;
+    const cardY = 18;
+    const cardWidth = 170;
+    const cardHeight = 245;
 
-    // Header banner text
+    // White Card Background with Subtle Border
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(203, 213, 225); // slate-300
+    pdf.setLineWidth(0.8);
+    pdf.roundedRect(cardX, cardY, cardWidth, cardHeight, 4, 4, 'FD');
+
+    // Blue Header Top Accent Bar
+    pdf.setFillColor(29, 78, 216); // #1d4ed8
+    pdf.roundedRect(cardX, cardY, cardWidth, 14, 4, 4, 'F');
+    pdf.rect(cardX, cardY + 8, cardWidth, 6, 'F'); // square bottom of top bar
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(255, 255, 255);
+    pdf.text('OFFICIAL DIGITAL ENTRY VOUCHER • VERIFIED', pageWidth / 2, cardY + 9, { align: 'center' });
+
+    // Festival Title Header
+    let currentY = cardY + 28;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(22);
+    pdf.setTextColor(11, 18, 41); // #0b1229
+    pdf.text('DANDIYA RAAT 2026', pageWidth / 2, currentY, { align: 'center' });
+
+    currentY += 7;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(10);
+    pdf.setTextColor(29, 78, 216);
+    pdf.text('NARAPALLY CRICKET GROUND • HYDERABAD', pageWidth / 2, currentY, { align: 'center' });
+
+    currentY += 5;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text('15 October 2026 • 5:00 PM Onwards • Single Main Entrance', pageWidth / 2, currentY, { align: 'center' });
+
+    // Dashed Divider Line
+    currentY += 8;
+    pdf.setDrawColor(203, 213, 225);
+    pdf.setLineDashPattern([2, 2], 0);
+    pdf.line(cardX + 8, currentY, cardX + cardWidth - 8, currentY);
+    pdf.setLineDashPattern([], 0); // reset dash
+
+    // Prominent Email Notice Banner (As explicitly requested by user)
+    currentY += 6;
+    pdf.setFillColor(239, 246, 255); // blue-50
+    pdf.setDrawColor(191, 219, 254); // blue-200
+    pdf.roundedRect(cardX + 10, currentY, cardWidth - 20, 14, 2, 2, 'FD');
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(30, 58, 138); // blue-900
+    pdf.text(
+      'NOTE: The official original pass will also be sent to your registered email upon approval.',
+      pageWidth / 2,
+      currentY + 6,
+      { align: 'center' }
+    );
+    if (email) {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7);
+      pdf.setTextColor(59, 130, 246);
+      pdf.text(`Sent to: ${email}`, pageWidth / 2, currentY + 11, { align: 'center' });
+    }
+
+    currentY += 20;
+
+    // Attendee & Ticket Details Box (2 Columns)
+    const leftCol = cardX + 16;
+    const rightCol = cardX + (cardWidth / 2) + 8;
+
+    // Row 1: Attendee Name & Booking Ref
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text('PASS HOLDER', leftCol, currentY);
+    pdf.text('BOOKING REFERENCE', rightCol, currentY);
+
+    currentY += 5;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(12);
+    pdf.setTextColor(11, 18, 41);
+    pdf.text(holderName, leftCol, currentY);
+
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(11);
-    pdf.setTextColor(246, 200, 106);
-    pdf.text('DANDIYA RAAT 2026 • OFFICIAL ENTRY PASS', pdfWidth / 2, 16, { align: 'center' });
+    pdf.setTextColor(29, 78, 216);
+    pdf.text(bookingRef, rightCol, currentY);
 
+    currentY += 10;
+
+    // Row 2: Pass Tier & Quantity
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
-    pdf.setTextColor(148, 163, 184);
-    pdf.text('Narapally Cricket Ground, Hyderabad • 15 October 2026', pdfWidth / 2, 21, { align: 'center' });
+    pdf.setTextColor(100, 116, 139);
+    pdf.text('PASS TIER', leftCol, currentY);
+    pdf.text('ADMISSION COUNT', rightCol, currentY);
 
-    const maxImgWidth = 150;
-    const imgHeight = (canvas.height * maxImgWidth) / canvas.width;
-    const xPos = (pdfWidth - maxImgWidth) / 2;
-    const yPos = 26;
+    currentY += 5;
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(11, 18, 41);
+    pdf.text(passTitle, leftCol, currentY);
 
-    const imgData = canvas.toDataURL('image/png', 1.0);
-    pdf.addImage(imgData, 'PNG', xPos, yPos, maxImgWidth, imgHeight, undefined, 'FAST');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor(11, 18, 41);
+    pdf.text(`${quantity} Person${quantity > 1 ? 's' : ''}`, rightCol, currentY);
 
-    // Security footer text
-    const footerY = Math.min(yPos + imgHeight + 10, pdfHeight - 12);
+    // Dashed Divider before QR
+    currentY += 9;
+    pdf.setDrawColor(203, 213, 225);
+    pdf.setLineDashPattern([2, 2], 0);
+    pdf.line(cardX + 8, currentY, cardX + cardWidth - 8, currentY);
+    pdf.setLineDashPattern([], 0);
+
+    // Entry Status Badge
+    currentY += 7;
+    if (isCheckedIn) {
+      pdf.setFillColor(254, 242, 242);
+      pdf.setDrawColor(239, 68, 68);
+      pdf.roundedRect(cardX + 30, currentY, cardWidth - 60, 8, 2, 2, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(185, 28, 28);
+      pdf.text(`ALREADY USED / ADMITTED (${checkedInAt || 'Earlier'})`, pageWidth / 2, currentY + 5.5, { align: 'center' });
+    } else {
+      pdf.setFillColor(240, 253, 244);
+      pdf.setDrawColor(74, 222, 128);
+      pdf.roundedRect(cardX + 30, currentY, cardWidth - 60, 8, 2, 2, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(21, 128, 61);
+      pdf.text('✓ VERIFIED TICKET • PRESENT AT ENTRY TURNSTILE', pageWidth / 2, currentY + 5.5, { align: 'center' });
+    }
+
+    currentY += 13;
+
+    // DIRECT EMBEDDED SCANNABLE QR CODE (Guaranteed 100% visible in PDF!)
+    const qrSize = 65; // 65mm square (very large and crisp)
+    const qrX = (pageWidth - qrSize) / 2;
+    const qrY = currentY;
+
+    // QR Outer Box
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(203, 213, 225);
+    pdf.roundedRect(qrX - 3, qrY - 3, qrSize + 6, qrSize + 6, 2, 2, 'FD');
+
+    // Add Image directly into PDF binary
+    pdf.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize, undefined, 'FAST');
+
+    currentY += qrSize + 7;
+
+    // Security Token
+    pdf.setFont('courier', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(71, 85, 105);
+    pdf.text(`TOKEN: ${bookingRef}-TURNSTILE-ENTRY`, pageWidth / 2, currentY, { align: 'center' });
+
+    currentY += 6;
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(7.5);
-    pdf.setTextColor(246, 200, 106);
-    pdf.text(`BOOKING REF: ${bookingRef}  |  ATTENDEE: ${holderName}`, pdfWidth / 2, footerY, { align: 'center' });
+    pdf.setTextColor(29, 78, 216);
+    pdf.text('SCAN QR CODE AT TURNSTILE GATE UPON ARRIVAL', pageWidth / 2, currentY, { align: 'center' });
 
+    currentY += 5;
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(6.5);
-    pdf.setTextColor(100, 116, 139);
-    pdf.text('Present this digital or printed pass with QR code at turnstile gates for entry wristband.', pdfWidth / 2, footerY + 4, { align: 'center' });
+    pdf.setTextColor(148, 163, 184);
+    pdf.text('Narapally Cricket Ground, Hyderabad • Official Festival Pass', pageWidth / 2, currentY, { align: 'center' });
 
+    // Download PDF directly
     const safeRef = bookingRef.replace(/[^a-zA-Z0-9_-]/g, '');
     pdf.save(`DandiyaRaat-Pass-${safeRef}.pdf`);
     return true;
   } catch (error) {
-    console.error('PDF export failed:', error);
-    // Fallback: window.print()
+    console.error('PDF generation error:', error);
     window.print();
     return false;
   }

@@ -223,7 +223,7 @@ export const DEFAULT_FESTIVAL_CONTENT = {
     },
     {
       q: 'WHAT IS THE PARKING & SECURITY PROTOCOL?',
-      a: 'We provide dedicated, floodlit car and two-wheeler parking zones at Narapally Cricket Ground with 100% CCTV surveillance and security marshals. Active on-site medical first-response units and ambulances are stationed near Gate 01.'
+      a: 'We provide dedicated, floodlit car and two-wheeler parking zones at Narapally Cricket Ground with 100% CCTV surveillance and security marshals. Active on-site medical first-response units and ambulances are stationed near Main Entrance.'
     },
     {
       q: 'ARE FOOD & DRINK ITEMS INCLUDED WITH TICKETS?',

@@ -206,23 +206,25 @@ export default function Navbar({
             </button>
           )}
 
-          {/* Primary Book Pass Action (Visible on tablet & desktop, mobile uses sticky bottom bar) */}
-          <button
-            onClick={() => onOpenBooking('SINGLE PASS', 349)}
-            className="hidden sm:flex bg-[#1d4ed8] hover:bg-[#2563eb] text-white border border-[#38bdf8]/50 px-3.5 sm:px-4 py-1.5 font-label-ticket text-xs uppercase tracking-wider items-center gap-1.5 poster-shadow-dark active:translate-x-0.5 active:translate-y-0.5 transition-all rounded"
-          >
-            {!currentUser ? (
-              <>
-                <Lock className="w-3.5 h-3.5 text-[#f6c86a]" />
-                <span className="font-bold">LOGIN TO BOOK</span>
-              </>
-            ) : (
-              <>
-                <Ticket className="w-3.5 h-3.5 text-[#f6c86a]" />
-                <span className="font-bold">BOOK PASS</span>
-              </>
-            )}
-          </button>
+          {/* Header Action: View My Passes when logged in, or Login to Book when guest */}
+          {currentUser ? (
+            <button
+              onClick={() => onNavigate('my-passes')}
+              className="hidden sm:flex bg-[#1d4ed8] hover:bg-[#2563eb] text-white border border-[#38bdf8]/50 px-3.5 sm:px-4 py-1.5 font-label-ticket text-xs uppercase tracking-wider items-center gap-1.5 poster-shadow-dark active:translate-x-0.5 active:translate-y-0.5 transition-all rounded font-bold"
+              title="View your booked festival passes"
+            >
+              <Ticket className="w-3.5 h-3.5 text-[#f6c86a]" />
+              <span>VIEW MY PASSES</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => onOpenBooking('SINGLE PASS', 349)}
+              className="hidden sm:flex bg-[#1d4ed8] hover:bg-[#2563eb] text-white border border-[#38bdf8]/50 px-3.5 sm:px-4 py-1.5 font-label-ticket text-xs uppercase tracking-wider items-center gap-1.5 poster-shadow-dark active:translate-x-0.5 active:translate-y-0.5 transition-all rounded font-bold"
+            >
+              <Lock className="w-3.5 h-3.5 text-[#f6c86a]" />
+              <span>LOGIN TO BOOK</span>
+            </button>
+          )}
 
           {/* Clean, Compact Mobile Drawer Toggle */}
           <button
@@ -306,25 +308,29 @@ export default function Navbar({
 
             {/* Drawer Bottom Action */}
             <div className="pt-4 border-t border-[#2a3656] space-y-2">
-              <button
-                onClick={() => {
-                  setMobileDrawerOpen(false);
-                  onOpenBooking('SINGLE PASS', 349);
-                }}
-                className="w-full bg-[#1d4ed8] hover:bg-[#2563eb] text-white py-2.5 font-headline-sm text-base uppercase rounded poster-shadow-dark flex items-center justify-center gap-1.5"
-              >
-                {!currentUser ? (
-                  <>
-                    <Lock className="w-4 h-4 text-[#f6c86a]" />
-                    <span>LOGIN TO BOOK PASS</span>
-                  </>
-                ) : (
-                  <>
-                    <Ticket className="w-4 h-4 text-[#f6c86a]" />
-                    <span>BOOK YOUR PASS</span>
-                  </>
-                )}
-              </button>
+              {currentUser ? (
+                <button
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    onNavigate('my-passes');
+                  }}
+                  className="w-full bg-[#1d4ed8] hover:bg-[#2563eb] text-white py-2.5 font-headline-sm text-base uppercase rounded poster-shadow-dark flex items-center justify-center gap-1.5 font-bold"
+                >
+                  <Ticket className="w-4 h-4 text-[#f6c86a]" />
+                  <span>VIEW MY PASSES</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    onOpenBooking('SINGLE PASS', 349);
+                  }}
+                  className="w-full bg-[#1d4ed8] hover:bg-[#2563eb] text-white py-2.5 font-headline-sm text-base uppercase rounded poster-shadow-dark flex items-center justify-center gap-1.5"
+                >
+                  <Lock className="w-4 h-4 text-[#f6c86a]" />
+                  <span>LOGIN TO BOOK PASS</span>
+                </button>
+              )}
 
               {currentUser ? (
                 <button

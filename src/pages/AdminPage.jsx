@@ -358,10 +358,10 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
       return;
     }
 
-    updateBookingCheckIn(matched.id, true, 'Gate 02 - Turnstile A');
+    updateBookingCheckIn(matched.id, true, 'Main Entrance');
     setScanMessage({
       success: true,
-      text: `✅ Verified! Welcome ${matched.holderName} (${matched.passTitle} x${matched.quantity}). Turnstile Gate 02 unlocked.`
+      text: `✅ Verified! Welcome ${matched.holderName} (${matched.passTitle} x${matched.quantity}). Turnstile Main Entrance unlocked.`
     });
     setScanInput('');
   };
@@ -1229,7 +1229,7 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                               </div>
                             ) : (
                               <button
-                                onClick={() => updateBookingCheckIn(b.id, true, 'Gate 02 - Admin Override')}
+                                onClick={() => updateBookingCheckIn(b.id, true, 'Main Entrance')}
                                 className="px-2.5 py-1 text-[10px] font-label-stamp uppercase rounded border font-bold bg-emerald-950 text-emerald-300 border-emerald-500 hover:bg-emerald-900"
                               >
                                 CHECK IN NOW
@@ -1638,7 +1638,7 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                 <h3 className="font-headline-sm text-2xl text-white uppercase leading-none">
                   TURNSTILE SCANNER TERMINAL
                 </h3>
-                <span className="font-label-stamp text-[10px] text-[#a5b4d4] uppercase">GATE 02 - MAIN ARENA ENTRY</span>
+                <span className="font-label-stamp text-[10px] text-[#a5b4d4] uppercase">MAIN ARENA ENTRANCE</span>
               </div>
             </div>
 
@@ -1983,7 +1983,7 @@ function EditAttendeePassModal({ booking, passTiers, onClose, onSave }) {
     passTitle: booking.passTitle || 'SINGLE PASS',
     quantity: booking.quantity || 1,
     totalAmount: booking.totalAmount || 0,
-    gate: booking.gate || 'Gate 02 - Turnstile A',
+    gate: booking.gate || 'Main Entrance',
     paymentStatus: booking.paymentStatus || 'PENDING_VERIFICATION',
     checkedIn: Boolean(booking.checkedIn),
     utrNumber: booking.utrNumber || ''
@@ -2167,7 +2167,7 @@ function EditAttendeePassModal({ booking, passTiers, onClose, onSave }) {
                 type="text"
                 value={formData.gate}
                 onChange={e => setFormData({ ...formData, gate: e.target.value })}
-                placeholder="Gate 02 - Turnstile A"
+                placeholder="Main Entrance"
                 className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-sm text-white rounded-lg focus:border-[#38bdf8] focus:outline-none"
               />
             </div>

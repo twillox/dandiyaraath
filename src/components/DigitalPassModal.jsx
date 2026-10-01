@@ -8,11 +8,9 @@ import {
   Clock,
   Mail,
   ShieldCheck,
-  Sparkles,
-  Ticket,
-  Calendar,
+  Check,
   MapPin,
-  Check
+  Calendar
 } from 'lucide-react';
 import TicketQR from './TicketQR';
 import { getFestivalContent } from '../lib/contentStore';
@@ -65,12 +63,12 @@ export default function DigitalPassModal({ booking, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/92 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="relative w-full max-w-md bg-[#070d1e] text-[#dce1ff] border-2 border-[#d4af37]/60 p-4 sm:p-5 rounded-3xl shadow-[0_0_50px_rgba(212,175,55,0.2)] my-4 animate-fadeIn">
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="relative w-full max-w-md bg-[#0b1229] border border-[#2a3656] text-[#dce1ff] p-4 sm:p-5 rounded-2xl shadow-2xl my-4 animate-fadeIn">
         {/* Modal Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 text-slate-400 hover:text-white border border-[#2a3656] hover:border-[#f6c86a] p-1.5 rounded-full transition-colors z-20 bg-[#0b1229]/80"
+          className="absolute top-3.5 right-3.5 text-slate-400 hover:text-white border border-[#2a3656] hover:border-[#f6c86a] p-1.5 rounded-lg transition-colors z-20"
           title="Close Modal"
         >
           <X className="w-5 h-5" />
@@ -79,7 +77,7 @@ export default function DigitalPassModal({ booking, onClose }) {
         {isPending ? (
           /* ================= PAYMENT PENDING / UNDER REVIEW VIEW ================= */
           <div className="text-center py-2 space-y-4">
-            <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+            <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400 shadow">
               <Clock className="w-7 h-7" />
             </div>
 
@@ -96,7 +94,7 @@ export default function DigitalPassModal({ booking, onClose }) {
               </div>
             </div>
 
-            <div className="p-4 bg-[#0e1633] border border-[#2a3656] rounded-2xl text-left space-y-2.5 text-xs shadow-inner">
+            <div className="p-4 bg-[#141a32] border border-[#2a3656] rounded-xl text-left space-y-2 text-xs">
               <div className="flex justify-between items-center pb-2 border-b border-[#2a3656]/50">
                 <span className="text-slate-400 font-label-stamp uppercase text-[10px]">BOOKING REF</span>
                 <span className="font-mono font-bold text-[#f6c86a] text-sm">{booking.ref || booking.id}</span>
@@ -113,20 +111,10 @@ export default function DigitalPassModal({ booking, onClose }) {
                 <span className="text-slate-400 font-label-stamp uppercase text-[10px]">TOTAL AMOUNT</span>
                 <span className="font-bold text-base text-white font-mono">₹{booking.totalAmount}/-</span>
               </div>
-              {booking.paymentScreenshot && (
-                <div className="flex items-center justify-between text-[11px] pt-1 text-emerald-400 font-mono">
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Screenshot Uploaded
-                  </span>
-                  {booking.utrNumber && (
-                    <span className="text-slate-400">UTR: {booking.utrNumber}</span>
-                  )}
-                </div>
-              )}
             </div>
 
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Once approved by admin, your verified royal pass and scannable turnstile QR will unlock here instantly.
+              The official original pass will also be sent to your registered email upon approval.
             </p>
 
             <button
@@ -138,182 +126,151 @@ export default function DigitalPassModal({ booking, onClose }) {
             </button>
           </div>
         ) : (
-          /* ================= ROYAL COLLECTIBLE FESTIVAL PASS ================= */
+          /* ================= BASIC WHITE THEMED PASS (AS REQUESTED) ================= */
           <div className="space-y-3.5">
-            {/* Downloadable / Printable Pass Container */}
+            {/* Clean White Card Pass */}
             <div
-              id="royal-festival-pass"
-              className="relative bg-gradient-to-b from-[#0b1430] via-[#070d22] to-[#040816] text-[#dce1ff] rounded-2xl border-2 border-[#d4af37] p-4 sm:p-5 shadow-2xl overflow-hidden"
-              style={{
-                backgroundImage: 'radial-gradient(ellipse at top center, rgba(212,175,55,0.12) 0%, transparent 70%)'
-              }}
+              id="printable-pass"
+              className="bg-white text-[#0b1229] rounded-2xl p-4 sm:p-5 border-2 border-slate-200 shadow-xl"
             >
-              {/* Left and Right Perforated Ticket Notches */}
-              <div className="absolute top-[52%] -left-3.5 w-7 h-7 rounded-full bg-[#070d1e] border-r-2 border-[#d4af37] shadow-inner pointer-events-none"></div>
-              <div className="absolute top-[52%] -right-3.5 w-7 h-7 rounded-full bg-[#070d1e] border-l-2 border-[#d4af37] shadow-inner pointer-events-none"></div>
-
-              {/* 4 Corner Ornaments */}
-              <div className="absolute top-2 left-2 text-[#f6c86a]/40 text-xs font-mono select-none">✦</div>
-              <div className="absolute top-2 right-2 text-[#f6c86a]/40 text-xs font-mono select-none">✦</div>
-              <div className="absolute bottom-2 left-2 text-[#f6c86a]/40 text-xs font-mono select-none">✦</div>
-              <div className="absolute bottom-2 right-2 text-[#f6c86a]/40 text-xs font-mono select-none">✦</div>
-
-              {/* Header: Royal Band & Logo */}
-              <div className="text-center pb-3 border-b-2 border-dashed border-[#d4af37]/40 relative">
-                <div className="inline-flex items-center gap-1.5 px-3 py-0.5 bg-gradient-to-r from-[#d4af37]/20 via-[#f6c86a]/30 to-[#d4af37]/20 border border-[#f6c86a]/60 rounded-full text-[9px] font-mono text-[#f6c86a] font-bold tracking-widest uppercase mb-2">
-                  <Sparkles className="w-2.5 h-2.5 text-[#f6c86a]" />
-                  <span>OFFICIAL ROYAL FESTIVAL PASS</span>
-                  <Sparkles className="w-2.5 h-2.5 text-[#f6c86a]" />
-                </div>
+              {/* Header Banner */}
+              <div className="text-center pb-3 border-b-2 border-dashed border-slate-300">
+                <span className="bg-[#1d4ed8] text-white px-3 py-1 font-mono text-[10px] uppercase font-bold tracking-widest rounded inline-block mb-2">
+                  OFFICIAL DIGITAL ENTRY VOUCHER • VERIFIED
+                </span>
 
                 <div className="flex items-center justify-center my-1.5">
-                  <img
-                    src={festivalLogo}
-                    alt="Dandiya Raat Logo"
-                    className="h-12 sm:h-14 w-auto object-contain drop-shadow-[0_2px_12px_rgba(246,200,106,0.3)]"
-                  />
+                  {festivalLogo ? (
+                    <img
+                      src={festivalLogo}
+                      alt="Dandiya Raat Logo"
+                      className="h-12 sm:h-14 w-auto object-contain"
+                    />
+                  ) : (
+                    <div className="text-2xl font-bold uppercase tracking-wider text-[#0b1229]">
+                      DANDIYA <span className="text-[#f6c86a]">रात</span> 2026
+                    </div>
+                  )}
                 </div>
 
-                <p className="font-label-ticket text-[11px] text-[#38bdf8] uppercase font-bold tracking-wider mt-1 flex items-center justify-center gap-1">
-                  <MapPin className="w-3 h-3 text-[#f6c86a]" />
-                  <span>NARAPALLY CRICKET GROUND • HYDERABAD</span>
+                <p className="font-label-ticket text-xs text-[#1d4ed8] uppercase font-bold tracking-wide mt-1">
+                  NARAPALLY CRICKET GROUND • HYDERABAD
                 </p>
-
-                {/* Shimmering Holographic Security Ribbon */}
-                <div
-                  className="h-1.5 w-full mt-2.5 rounded-full border border-white/20"
-                  style={{
-                    background: 'linear-gradient(90deg, #38bdf8 0%, #ec4899 25%, #f6c86a 50%, #10b981 75%, #38bdf8 100%)',
-                    backgroundSize: '200% 100%'
-                  }}
-                ></div>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  15 OCTOBER 2026 • 5:00 PM ONWARDS • SINGLE MAIN ENTRANCE
+                </p>
               </div>
 
-              {/* Attendee Details Grid */}
-              <div className="grid grid-cols-2 gap-2.5 py-3 border-b-2 border-dashed border-[#d4af37]/40 text-left relative">
+              {/* Notice that Original Pass is Sent to Email */}
+              <div className="my-3 p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                <p className="text-[11px] text-blue-900 font-medium leading-snug">
+                  📌 <strong>Note:</strong> This is your digital entry pass for gate turnstile scanning. The official original pass with wristband coupons has also been sent to your registered email.
+                </p>
+                {(booking.email || booking.userEmail) && (
+                  <p className="text-[10px] text-blue-700 font-mono mt-0.5 font-bold">
+                    Sent to: {booking.email || booking.userEmail}
+                  </p>
+                )}
+              </div>
+
+              {/* Attendee Details Grid (2 Columns, NO gate references!) */}
+              <div className="grid grid-cols-2 gap-3 py-2.5 border-t border-b border-dashed border-slate-300 text-left text-xs">
                 <div>
-                  <span className="font-label-stamp text-[9px] text-[#f6c86a] uppercase block tracking-wider font-bold">
+                  <span className="font-label-stamp text-[10px] text-slate-500 uppercase block font-bold">
                     PASS HOLDER
                   </span>
-                  <span className="font-headline-sm text-sm sm:text-base font-bold uppercase text-white truncate block leading-tight mt-0.5">
+                  <span className="font-headline-sm text-sm sm:text-base font-bold uppercase text-[#0b1229] truncate block mt-0.5">
                     {booking.holderName}
                   </span>
                 </div>
 
                 <div>
-                  <span className="font-label-stamp text-[9px] text-[#f6c86a] uppercase block tracking-wider font-bold">
+                  <span className="font-label-stamp text-[10px] text-slate-500 uppercase block font-bold">
                     BOOKING REFERENCE
                   </span>
-                  <span className="font-mono text-xs sm:text-sm font-bold uppercase text-[#38bdf8] block tracking-wide mt-0.5">
+                  <span className="font-mono text-xs sm:text-sm font-bold uppercase text-[#1d4ed8] block mt-0.5">
                     {booking.ref || booking.id}
                   </span>
                 </div>
 
                 <div>
-                  <span className="font-label-stamp text-[9px] text-[#f6c86a] uppercase block tracking-wider font-bold">
-                    PASS TIER & ADMISSION
+                  <span className="font-label-stamp text-[10px] text-slate-500 uppercase block font-bold">
+                    PASS TIER
                   </span>
-                  <span className="font-headline-sm text-xs sm:text-sm uppercase text-white block font-bold mt-0.5">
+                  <span className="font-headline-sm text-xs sm:text-sm uppercase text-[#0b1229] block font-bold mt-0.5">
                     {booking.passTitle}
-                  </span>
-                  <span className="text-[10px] text-slate-300 font-mono">
-                    Admits: {booking.quantity || 1} Person{(booking.quantity || 1) > 1 ? 's' : ''}
                   </span>
                 </div>
 
                 <div>
-                  <span className="font-label-stamp text-[9px] text-[#f6c86a] uppercase block tracking-wider font-bold">
-                    TURNSTILE GATE & DATE
+                  <span className="font-label-stamp text-[10px] text-slate-500 uppercase block font-bold">
+                    ADMISSION COUNT
                   </span>
-                  <span className="font-headline-sm text-xs sm:text-sm uppercase text-[#f6c86a] block font-bold mt-0.5">
-                    {booking.gate || 'GATE 02'} • 5 PM
-                  </span>
-                  <span className="text-[10px] text-slate-300 font-mono">
-                    15 October 2026
+                  <span className="font-headline-sm text-xs sm:text-sm uppercase text-[#1d4ed8] block font-bold mt-0.5">
+                    {booking.quantity || 1} PERSON{(booking.quantity || 1) > 1 ? 'S' : ''}
                   </span>
                 </div>
               </div>
 
-              {/* Turnstile Admission Stamp Banner */}
-              <div className="py-2 flex items-center justify-between">
+              {/* Entry Status */}
+              <div className="py-2.5 flex items-center justify-between text-xs">
                 {isCheckedIn ? (
-                  <div className="w-full bg-red-950/70 border-2 border-red-600 rounded-xl p-2 text-center shadow-lg">
-                    <span className="text-red-400 font-mono text-[11px] font-black uppercase tracking-widest block">
-                      ⚠ ALREADY CHECKED IN / USED
-                    </span>
-                    <span className="text-[10px] text-red-200/90 font-mono block mt-0.5">
-                      Admitted at: {booking.checkedInAt ? new Date(booking.checkedInAt).toLocaleTimeString() : 'Turnstile'}
-                    </span>
+                  <div className="w-full bg-red-50 border border-red-300 rounded-lg p-2 text-center text-red-700 font-mono font-bold text-xs">
+                    ⚠ ALREADY CHECKED IN • ADMITTED
                   </div>
                 ) : (
-                  <div className="w-full bg-emerald-950/60 border border-emerald-500/70 rounded-xl p-2 flex items-center justify-between text-xs shadow">
-                    <span className="text-emerald-300 font-label-stamp uppercase text-[10px] font-bold flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>OFFICIAL VERIFIED TICKET</span>
+                  <div className="w-full bg-emerald-50 border border-emerald-300 rounded-lg p-1.5 flex items-center justify-between text-emerald-800 text-[11px] font-bold">
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>VERIFIED FESTIVAL PASS</span>
                     </span>
-                    <span className="font-mono text-[9px] text-emerald-300 font-bold bg-emerald-900/80 px-2 py-0.5 rounded border border-emerald-500/60">
-                      ✓ READY FOR SCAN
+                    <span className="bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-mono text-[10px]">
+                      READY FOR SCAN
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Scannable Dynamic Turnstile QR Code with Gold Corner Brackets */}
+              {/* Large Scannable Turnstile QR Code (Guaranteed Base64 image, NO barcode!) */}
               <div className="pt-2 flex flex-col items-center justify-center">
-                <div className="relative p-2.5 bg-white rounded-2xl shadow-[0_0_25px_rgba(255,255,255,0.15)] border-2 border-[#d4af37]">
-                  {/* Corner accents inside QR card */}
-                  <div className="absolute top-1 left-1 w-3 h-3 border-t-2 border-l-2 border-[#d4af37]"></div>
-                  <div className="absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 border-[#d4af37]"></div>
-                  <div className="absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 border-[#d4af37]"></div>
-                  <div className="absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 border-[#d4af37]"></div>
-
-                  <TicketQR data={qrPayload} size={155} />
-                </div>
-
-                <span className="font-mono text-[9px] tracking-widest text-[#f6c86a] mt-2 font-bold uppercase">
-                  TOKEN: {booking.id}-TURNSTILE
+                <TicketQR data={qrPayload} size={165} darkColor="#0b1229" lightColor="#ffffff" />
+                <span className="font-mono text-[10px] tracking-widest text-[#0b1229] mt-2 font-bold uppercase">
+                  TOKEN: {booking.ref || booking.id}-TURNSTILE
                 </span>
-              </div>
-
-              {/* Security Barcode */}
-              <div className="pt-2.5 flex flex-col items-center justify-center">
-                <div className="w-full h-7 bg-[#0b1430] border border-[#2a3656] flex items-center justify-around px-2 text-[#dce1ff] font-mono text-[8px] tracking-widest rounded">
-                  ||| | ||||| || |||| ||||| | || |||| | ||| ||||| ||
-                </div>
-                <span className="font-label-stamp text-[9px] text-slate-400 uppercase mt-1">
-                  PRESENT THIS PASS ON PHONE OR PRINT AT TURNSTILES
+                <span className="text-[10px] text-slate-500 font-medium mt-1 uppercase tracking-wide">
+                  SCAN THIS QR CODE AT ENTRY TURNSTILES UPON ARRIVAL
                 </span>
               </div>
             </div>
 
-            {/* User Action Buttons: Download PDF, Print, Share */}
+            {/* Action Buttons: Download PDF, Print, Share */}
             <div className="space-y-2 pt-1">
               {/* Primary PDF Download Button */}
               <button
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={downloadingPdf}
-                className="w-full bg-gradient-to-r from-[#d4af37] via-[#f6c86a] to-[#d4af37] hover:brightness-110 text-[#070d1e] py-3 px-4 rounded-xl font-headline-sm text-sm uppercase tracking-wider font-extrabold flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 transition-all active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed"
+                className="w-full bg-[#1d4ed8] hover:bg-[#2563eb] text-white py-3 px-4 rounded-xl font-headline-sm text-sm uppercase tracking-wider font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.99] disabled:opacity-75"
               >
                 {downloadingPdf ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-[#070d1e] border-t-transparent rounded-full animate-spin"></div>
-                    <span>GENERATING HIGH-RES PDF...</span>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>CREATING YOUR PDF PASS...</span>
                   </>
                 ) : pdfSuccess ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-900" />
+                    <Check className="w-4 h-4 text-emerald-300" />
                     <span>PDF DOWNLOADED SUCCESSFULLY!</span>
                   </>
                 ) : (
                   <>
-                    <Download className="w-4 h-4" />
+                    <Download className="w-4 h-4 text-[#f6c86a]" />
                     <span>DOWNLOAD PASS AS PDF</span>
                   </>
                 )}
               </button>
 
-              {/* Secondary Action Row: Print & Share WhatsApp */}
+              {/* Print & Share WhatsApp */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -321,7 +278,7 @@ export default function DigitalPassModal({ booking, onClose }) {
                   className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#141a32] border border-[#2a3656] hover:border-[#38bdf8] text-xs uppercase font-label-stamp font-bold text-white rounded-xl transition-colors shadow"
                 >
                   <Printer className="w-3.5 h-3.5 text-[#38bdf8]" />
-                  <span>PRINT TICKET</span>
+                  <span>PRINT PASS</span>
                 </button>
 
                 <button

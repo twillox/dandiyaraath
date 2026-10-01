@@ -66,19 +66,19 @@ export function saveUserSession(user) {
       displayName: user.displayName || user.name || (assignedRole === 'auth' ? 'Gate Turnstile Staff' : 'Festival Guest'),
       photoURL: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || (assignedRole === 'auth' ? 'Gate' : 'Guest'))}`,
       role: assignedRole,
-      gate: user.gate || 'Gate 01'
+      gate: user.gate || 'Main Entrance'
     };
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(cleanUser));
   }
   notifyAuth();
 }
 
-export function loginAsGateScanner(gateId = 'Gate 01', staffName = 'Turnstile Staff') {
+export function loginAsGateScanner(gateId = 'Main Entrance', staffName = 'Turnstile Staff') {
   const profile = {
     uid: 'auth_staff_' + Date.now().toString(36),
     email: 'auth@dandiyaraat.com',
     displayName: `${staffName} (${gateId})`,
-    photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=GateScanner-${gateId}`,
+    photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=GateScanner`,
     role: 'auth',
     gate: gateId
   };

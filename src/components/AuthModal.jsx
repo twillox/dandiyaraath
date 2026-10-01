@@ -127,7 +127,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = n
               onClick={() => {
                 const passCode = window.prompt('Enter Gate Staff Passkey (e.g. GATE2026 or AUTH2026):', 'GATE2026');
                 if (passCode && (passCode.trim().toUpperCase() === 'GATE2026' || passCode.trim().toUpperCase() === 'AUTH2026' || passCode.trim().toUpperCase() === 'AUTH')) {
-                  const gateUser = loginAsGateScanner('Gate 01', 'Gate Security Staff');
+                  const gateUser = loginAsGateScanner('Main Entrance', 'Turnstile Staff');
                   if (onSuccess) onSuccess(gateUser);
                   onClose();
                 } else if (passCode) {

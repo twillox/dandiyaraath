@@ -115,7 +115,7 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
   const [cameraError, setCameraError] = useState(null);
   const [scanResult, setScanResult] = useState(null); // { type: 'VALID_ADMISSION' | 'ALREADY_USED' | 'PENDING' | 'NOT_FOUND', booking, rawQuery }
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedGate, setSelectedGate] = useState(currentUser?.gate || 'Gate 01 - Main Entrance');
+  const [selectedGate, setSelectedGate] = useState('Main Entrance');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [sessionAdmissions, setSessionAdmissions] = useState([]);
   const [manualInputOpen, setManualInputOpen] = useState(false);
@@ -441,23 +441,17 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
 
       {/* Main Turnstile Body */}
       <main className="flex-1 max-w-xl w-full mx-auto p-3 sm:p-4 flex flex-col gap-3">
-        {/* Gate Selection Bar */}
+        {/* Festival Main Entrance Status Bar */}
         <div className="bg-[#0b1229] border border-[#1e294b] rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-md">
           <div className="flex items-center gap-2 text-xs">
             <MapPin className="w-4 h-4 text-[#f6c86a] shrink-0" />
-            <span className="text-slate-400 font-label-stamp uppercase text-[10px]">CURRENT GATE:</span>
+            <span className="text-white font-label-stamp uppercase text-[11px] font-bold">
+              NARAPALLY CRICKET GROUND • MAIN ENTRANCE
+            </span>
           </div>
-
-          <select
-            value={selectedGate}
-            onChange={(e) => setSelectedGate(e.target.value)}
-            className="bg-[#141a32] border border-[#2a3656] text-white text-xs font-mono font-bold rounded-lg px-2.5 py-1.5 focus:border-[#f6c86a] focus:outline-none"
-          >
-            <option value="Gate 01 - VIP Fast-track">GATE 01 (VIP Fast-track)</option>
-            <option value="Gate 02 - Main Entrance">GATE 02 (Main Entrance)</option>
-            <option value="Gate 03 - Group Arena">GATE 03 (Group Arena)</option>
-            <option value="Gate 04 - East Lawn Turnstile">GATE 04 (East Lawn)</option>
-          </select>
+          <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/80 font-mono text-[10px] font-bold px-2 py-0.5 rounded">
+            SCANNER READY
+          </span>
         </div>
 
         {/* Live Viewfinder / Scanner Container */}
@@ -593,9 +587,9 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
                     </div>
 
                     <div className="flex justify-between items-center">
-                      <span className="text-red-300 font-label-stamp uppercase text-[10px]">ORIGINAL GATE:</span>
+                      <span className="text-red-300 font-label-stamp uppercase text-[10px]">ENTRANCE:</span>
                       <span className="font-bold text-white">
-                        {scanResult.booking?.checkedInGate || 'Gate Turnstile'}
+                        Main Entrance (Narapally Ground)
                       </span>
                     </div>
 
@@ -664,8 +658,8 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
                     </div>
 
                     <div className="flex justify-between items-center">
-                      <span className="text-emerald-300 font-label-stamp uppercase text-[10px]">TURNSTILE:</span>
-                      <span className="font-medium text-emerald-200">{selectedGate}</span>
+                      <span className="text-emerald-300 font-label-stamp uppercase text-[10px]">ENTRANCE:</span>
+                      <span className="font-medium text-emerald-200">Main Entrance</span>
                     </div>
 
                     <div className="flex justify-between items-center pt-1.5 border-t border-emerald-900/60 font-mono text-[11px]">

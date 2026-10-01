@@ -168,8 +168,8 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
                     {/* Concise 3-column metadata */}
                     <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3656]/30 text-xs">
                       <div>
-                        <span className="text-[9px] text-slate-400 uppercase font-label-stamp block">GATE</span>
-                        <span className="font-medium text-white truncate block">{b.gate || 'Gate 02'}</span>
+                        <span className="text-[9px] text-slate-400 uppercase font-label-stamp block">DATE</span>
+                        <span className="font-medium text-white truncate block">15 Oct 2026</span>
                       </div>
                       <div>
                         <span className="text-[9px] text-slate-400 uppercase font-label-stamp block">PASSES</span>

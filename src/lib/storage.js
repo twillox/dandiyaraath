@@ -57,7 +57,7 @@ export const INITIAL_PASS_TIERS = [
     originalPrice: 699,
     description: 'VIP enclosure & inner ring access, priority turnstile entry, and dedicated air-cooled lounge.',
     perks: [
-      'Express VIP Gate 01 Turnstile entry',
+      'Express VIP Turnstile entry',
       'Inner circle Ras Kendra dance zone',
       'Premium polished Sheesham dandiya sticks',
       'VIP shaded lounge & complimentary welcome thandai'
@@ -78,7 +78,7 @@ export const INITIAL_PASS_TIERS = [
     originalPrice: 899,
     description: 'Admits 2 persons. Seamless dual entry with complimentary wooden dandiya sticks.',
     perks: [
-      'Dual attendee barcode scan',
+      'Dual attendee QR scan',
       '2 pairs authentic Gujarati wooden sticks',
       'Couple photo-booth instant portrait token',
       'Full arena & midnight Aarti access'
@@ -118,7 +118,7 @@ export const INITIAL_PASS_TIERS = [
     statusTag: 'SAVE ₹97',
     price: 1299,
     originalPrice: 1599,
-    description: 'Squad pass for 4 persons. One combined barcode voucher with rapid turnstile scan.',
+    description: 'Squad pass for 4 persons. One combined QR voucher with rapid turnstile scan.',
     perks: [
       'Admits 4 people together',
       '4 pairs handcrafted dandiya sticks',
@@ -176,7 +176,7 @@ export const INITIAL_BOOKINGS = [
     createdAt: '2026-09-28T14:30:00.000Z',
     checkedIn: false,
     checkedInAt: null,
-    gate: 'Gate 02 - Turnstile A'
+    gate: 'Main Entrance'
   },
   {
     id: 'DND-HYD-51204',
@@ -200,7 +200,7 @@ export const INITIAL_BOOKINGS = [
     createdAt: '2026-09-29T10:15:00.000Z',
     checkedIn: true,
     checkedInAt: '2026-10-01T14:45:00.000Z',
-    gate: 'Gate 01 - VIP Fast-track'
+    gate: 'Main Entrance'
   },
   {
     id: 'DND-HYD-77319',
@@ -224,7 +224,7 @@ export const INITIAL_BOOKINGS = [
     createdAt: '2026-09-30T18:20:00.000Z',
     checkedIn: false,
     checkedInAt: null,
-    gate: 'Gate 03 - Group Entrance'
+    gate: 'Main Entrance'
   }
 ];
 
@@ -234,9 +234,9 @@ export const FESTIVAL_SCHEDULE = [
     time: '5:00 PM',
     title: 'GATES OPEN & TURNSTILE ACCESS',
     subtitle: 'Narapally Cricket Ground',
-    desc: 'Turnstile barcode scanning, wristband collection, and complimentary wooden dandiya stick distribution.',
+    desc: 'Turnstile QR scanning, wristband collection, and complimentary wooden dandiya stick distribution.',
     tag: 'ARRIVAL',
-    zone: 'Gate 01, 02, 03'
+    zone: 'Main Entrance Turnstiles'
   },
   {
     time: '6:00 PM',
@@ -386,7 +386,7 @@ export function findBooking(query) {
   }) || null;
 }
 
-export function updateBookingCheckIn(bookingIdOrRef, isCheckedIn = true, gate = 'Gate 02') {
+export function updateBookingCheckIn(bookingIdOrRef, isCheckedIn = true, gate = 'Main Entrance') {
   const bookings = getLocalBookings();
   const b = findBooking(bookingIdOrRef);
   if (!b) return null;
