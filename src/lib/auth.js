@@ -12,8 +12,21 @@ export const DEFAULT_ADMIN_EMAILS = [
   'tejaswithreddy0101@gmail.com'
 ];
 
+// Authorized turnstile gate authentication / scanner staff
+export const DEFAULT_AUTH_STAFF_EMAILS = [
+  'auth@dandiyaraat.com',
+  'gate@dandiyaraat.com',
+  'scanner@dandiyaraat.com',
+  'turnstile@dandiyaraat.com',
+  'security@dandiyaraat.com'
+];
+
 export function getAdminEmails() {
   return DEFAULT_ADMIN_EMAILS;
+}
+
+export function getAuthStaffEmails() {
+  return DEFAULT_AUTH_STAFF_EMAILS;
 }
 
 // Client-side admin assignment is strictly disabled. Roles must be updated directly in the database.
@@ -27,8 +40,10 @@ export function getCurrentUser() {
   try {
     const user = JSON.parse(raw);
     const admins = getAdminEmails();
+    const authStaff = getAuthStaffEmails();
     const isUserAdmin = admins.includes((user.email || '').toLowerCase()) || user.role === 'admin';
-    user.role = isUserAdmin ? 'admin' : 'user';
+    const isUserAuth = user.role === 'auth' || authStaff.includes((user.email || '').toLowerCase());
+    user.role = isUserAdmin ? 'admin' : (isUserAuth ? 'auth' : 'user');
     return user;
   } catch {
     return null;
@@ -40,18 +55,37 @@ export function saveUserSession(user) {
     localStorage.removeItem(AUTH_STORAGE_KEY);
   } else {
     const admins = getAdminEmails();
+    const authStaff = getAuthStaffEmails();
     const isUserAdmin = admins.includes((user.email || '').toLowerCase()) || user.role === 'admin';
+    const isUserAuth = user.role === 'auth' || authStaff.includes((user.email || '').toLowerCase());
+    const assignedRole = isUserAdmin ? 'admin' : (isUserAuth ? 'auth' : 'user');
+
     const cleanUser = {
       uid: user.uid || 'usr_' + Date.now().toString(36),
-      email: user.email || 'user@example.com',
-      displayName: user.displayName || user.name || 'Festival Guest',
-      photoURL: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || 'Guest')}`,
-      role: isUserAdmin ? 'admin' : 'user'
+      email: user.email || (assignedRole === 'auth' ? 'auth@dandiyaraat.com' : 'user@example.com'),
+      displayName: user.displayName || user.name || (assignedRole === 'auth' ? 'Gate Turnstile Staff' : 'Festival Guest'),
+      photoURL: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || (assignedRole === 'auth' ? 'Gate' : 'Guest'))}`,
+      role: assignedRole,
+      gate: user.gate || 'Gate 01'
     };
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(cleanUser));
   }
   notifyAuth();
 }
+
+export function loginAsGateScanner(gateId = 'Gate 01', staffName = 'Turnstile Staff') {
+  const profile = {
+    uid: 'auth_staff_' + Date.now().toString(36),
+    email: 'auth@dandiyaraat.com',
+    displayName: `${staffName} (${gateId})`,
+    photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=GateScanner-${gateId}`,
+    role: 'auth',
+    gate: gateId
+  };
+  saveUserSession(profile);
+  return profile;
+}
+
 
 export async function loginWithGoogleFirebase() {
   if (!isFirebaseConfigured() || !app) {
@@ -65,8 +99,9 @@ export async function loginWithGoogleFirebase() {
     const result = await signInWithPopup(auth, provider);
     const fbUser = result.user;
 
-    // Check role strictly in database (Firestore users collection or pre-configured admins)
+    // Check role strictly in database (Firestore users collection or pre-configured admins/auth staff)
     let isUserAdmin = DEFAULT_ADMIN_EMAILS.includes((fbUser.email || '').toLowerCase());
+    let isUserAuth = DEFAULT_AUTH_STAFF_EMAILS.includes((fbUser.email || '').toLowerCase());
 
     if (db) {
       try {
@@ -76,8 +111,11 @@ export async function loginWithGoogleFirebase() {
           const data = userSnap.data();
           if (data.role === 'admin') {
             isUserAdmin = true;
+          } else if (data.role === 'auth') {
+            isUserAuth = true;
           } else if (data.role === 'user' && !DEFAULT_ADMIN_EMAILS.includes((fbUser.email || '').toLowerCase())) {
             isUserAdmin = false;
+            isUserAuth = false;
           }
         }
       } catch (e) {
@@ -85,12 +123,14 @@ export async function loginWithGoogleFirebase() {
       }
     }
 
+    const assignedRole = isUserAdmin ? 'admin' : (isUserAuth ? 'auth' : 'user');
+
     const userProfile = {
       uid: fbUser.uid,
       email: fbUser.email,
       displayName: fbUser.displayName || fbUser.email.split('@')[0],
       photoURL: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fbUser.displayName || 'Guest')}`,
-      role: isUserAdmin ? 'admin' : 'user'
+      role: assignedRole
     };
 
     saveUserSession(userProfile);
@@ -121,14 +161,16 @@ export function loginSimulatedGoogle(customEmail, customName) {
   const name = customName || email.split('@')[0].replace('.', ' ').toUpperCase();
 
   const admins = getAdminEmails();
+  const authStaff = getAuthStaffEmails();
   const isUserAdmin = admins.includes(email);
+  const isUserAuth = authStaff.includes(email) || email.startsWith('auth@') || email.startsWith('gate');
 
   const profile = {
     uid: 'google_' + Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0)),
     email: email,
     displayName: name,
     photoURL: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
-    role: isUserAdmin ? 'admin' : 'user'
+    role: isUserAdmin ? 'admin' : (isUserAuth ? 'auth' : 'user')
   };
 
   saveUserSession(profile);

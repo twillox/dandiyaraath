@@ -12,7 +12,8 @@ import {
   updatePassTier,
   addPassTier,
   deletePassTier,
-  updateBookingDetails
+  updateBookingDetails,
+  deleteBooking
 } from '../lib/storage';
 import {
   getFestivalContent,
@@ -289,8 +290,9 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
 
   // Payment Verification Actions
   const handleVerifyPayment = (bookingId) => {
-    const updated = updateBookingPaymentVerification(bookingId, 'VERIFIED', currentUser.email);
+    const updated = updateBookingPaymentVerification(bookingId, 'VERIFIED', currentUser?.email || 'admin@dandiyaraat.com');
     if (updated) {
+      setBookings(getLocalBookings());
       setAdminToast(`✅ Payment Verified! Digital entry pass & turnstile QR dispatched to ${updated.email || updated.userEmail}`);
       setTimeout(() => setAdminToast(null), 5000);
       if (selectedScreenshotModal && selectedScreenshotModal.id === bookingId) {
@@ -301,13 +303,33 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
 
   const handleRejectPayment = (bookingId) => {
     if (window.confirm('Are you sure you want to flag/reject this payment submission?')) {
-      const updated = updateBookingPaymentVerification(bookingId, 'REJECTED', currentUser.email, 'Payment receipt could not be verified against bank records.');
+      const updated = updateBookingPaymentVerification(bookingId, 'REJECTED', currentUser?.email || 'admin@dandiyaraat.com', 'Payment receipt could not be verified against bank records.');
       if (updated) {
+        setBookings(getLocalBookings());
         setAdminToast(`⚠️ Payment marked as REJECTED for ${updated.holderName}.`);
         setTimeout(() => setAdminToast(null), 5000);
         if (selectedScreenshotModal && selectedScreenshotModal.id === bookingId) {
           setSelectedScreenshotModal(null);
         }
+      }
+    }
+  };
+
+  const handleDeleteBooking = (bookingId, holderName) => {
+    const confirmed = window.confirm(
+      `⚠️ PERMANENTLY DELETE TICKET REQUEST?\n\nAre you sure you want to completely delete the ticket request for "${holderName || 'this attendee'}"?\n\nThis will completely remove the pass from the database.`
+    );
+    if (!confirmed) return;
+    const success = deleteBooking(bookingId);
+    if (success) {
+      setBookings(getLocalBookings());
+      setAdminToast(`🗑️ Ticket request for "${holderName || bookingId}" has been completely deleted.`);
+      setTimeout(() => setAdminToast(null), 4000);
+      if (selectedScreenshotModal && selectedScreenshotModal.id === bookingId) {
+        setSelectedScreenshotModal(null);
+      }
+      if (selectedBookingForEdit && selectedBookingForEdit.id === bookingId) {
+        setSelectedBookingForEdit(null);
       }
     }
   };
@@ -1267,6 +1289,16 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                                   RE-VERIFY
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBooking(b.id, b.holderName)}
+                                className="text-[10px] font-label-stamp uppercase text-red-400 hover:text-white px-2 py-1 rounded border border-red-800/80 hover:bg-red-950 flex items-center gap-1 font-bold transition-colors ml-1"
+                                title="Permanently delete this ticket request"
+                              >
+                                <Trash2 className="w-3 h-3 text-red-400" />
+                                <span>DELETE</span>
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1855,13 +1887,24 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
 
             {/* Modal Footer Actions */}
             <div className="p-4 sm:p-5 border-t border-[#2a3656] bg-[#0b1229] flex flex-wrap items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedScreenshotModal(null)}
-                className="px-4 py-2 border border-[#2a3656] text-[#a5b4d4] hover:text-white rounded text-xs uppercase font-label-stamp"
-              >
-                Close Window
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedScreenshotModal(null)}
+                  className="px-4 py-2 border border-[#2a3656] text-[#a5b4d4] hover:text-white rounded text-xs uppercase font-label-stamp"
+                >
+                  Close Window
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteBooking(selectedScreenshotModal.id, selectedScreenshotModal.holderName)}
+                  className="px-3 py-2 border border-red-800 bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-white rounded text-xs uppercase font-label-stamp font-bold flex items-center gap-1.5 transition-colors"
+                  title="Completely delete this ticket request"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <span>DELETE REQUEST</span>
+                </button>
+              </div>
 
               <div className="flex items-center gap-2">
                 {selectedScreenshotModal.paymentStatus === 'PENDING_VERIFICATION' && (

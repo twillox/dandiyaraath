@@ -16,6 +16,7 @@ import PassesPage from './pages/PassesPage';
 import SchedulePage from './pages/SchedulePage';
 import MyPassesPage from './pages/MyPassesPage';
 import AdminPage from './pages/AdminPage';
+import AuthScannerPage from './pages/AuthScannerPage';
 
 // Dedicated Administrator Console Header
 function AdminPortalHeader({ currentUser, onSignOut }) {
@@ -105,6 +106,11 @@ export default function App() {
       const hash = window.location.hash.replace('#/', '').replace('#', '');
       if (['passes', 'schedule', 'my-passes', 'admin'].includes(hash)) {
         setActiveRoute(hash);
+      } else if (['auth', 'scanner', 'gate'].includes(hash)) {
+        const user = getCurrentUser();
+        if (!user || user.role !== 'auth') {
+          handleOpenAuth('auth');
+        }
       } else {
         setActiveRoute('home');
       }
@@ -171,6 +177,17 @@ export default function App() {
           </div>
         </footer>
       </div>
+    );
+  }
+
+  // =========================================================================
+  // RULE: ROLE "auth" IS THE GATE TURNSTILE SCANNER!
+  // ONLY the camera opens and QR scanning of passes is handled here.
+  // No public user festival website (Home, Passes, Schedule, Buy buttons) is shown.
+  // =========================================================================
+  if (currentUser && currentUser.role === 'auth') {
+    return (
+      <AuthScannerPage currentUser={currentUser} onSignOut={handleSignOut} />
     );
   }
 

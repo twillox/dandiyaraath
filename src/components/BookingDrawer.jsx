@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText, ChevronDown, QrCode } from 'lucide-react';
+import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText, ChevronDown, QrCode, Download } from 'lucide-react';
 import { saveBooking, PROMO_CODES, getPaymentSettings, getPassTiers, subscribeToStore } from '../lib/storage';
 import confetti from 'canvas-confetti';
 
@@ -208,10 +208,6 @@ export default function BookingDrawer({
     setTimeout(() => setCopiedUpi(false), 2000);
   };
 
-  // Payment (Only QR)
-  const [paymentMethod, setPaymentMethod] = useState('UPI_QR');
-  const [isProcessing, setIsProcessing] = useState(false);
-
   // Calculations
   const subtotal = unitPrice * quantity;
   let discount = 0;
@@ -223,6 +219,42 @@ export default function BookingDrawer({
     }
   }
   const totalAmount = Math.max(0, subtotal - discount);
+
+  const qrImageSrc = paymentSettings.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+    `upi://pay?pa=${paymentSettings.upiId || 'dandiya2026@upi'}&pn=${encodeURIComponent(
+      paymentSettings.accountName || 'Dandiya Raat Official'
+    )}&am=${totalAmount}&cu=INR`
+  )}`;
+
+  const handleDownloadPaymentQr = async () => {
+    try {
+      if (qrImageSrc.startsWith('data:')) {
+        const link = document.createElement('a');
+        link.href = qrImageSrc;
+        link.download = `Dandiya_Payment_QR_${(paymentSettings.upiId || 'UPI').replace('@', '_')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      const res = await fetch(qrImageSrc);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Dandiya_Payment_QR_${(paymentSettings.upiId || 'UPI').replace('@', '_')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.open(qrImageSrc, '_blank');
+    }
+  };
+
+  // Payment (Only QR)
+  const [paymentMethod, setPaymentMethod] = useState('UPI_QR');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleApplyPromo = (e) => {
     e.preventDefault();
@@ -616,24 +648,23 @@ export default function BookingDrawer({
                 STEP 1: SCAN & PAY VIA ANY UPI APP
               </span>
               <div className="p-3 bg-white rounded-xl border-2 border-[#1d4ed8] shadow-md flex items-center justify-center">
-                {paymentSettings.qrCodeUrl ? (
-                  <img
-                    src={paymentSettings.qrCodeUrl}
-                    alt="UPI Payment QR Code"
-                    className="w-40 h-40 object-contain rounded"
-                  />
-                ) : (
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                      `upi://pay?pa=${paymentSettings.upiId || 'dandiya2026@upi'}&pn=${encodeURIComponent(
-                        paymentSettings.accountName || 'Dandiya Raat Official'
-                      )}&am=${totalAmount}&cu=INR`
-                    )}`}
-                    alt="Scan UPI QR Code"
-                    className="w-40 h-40 object-contain rounded"
-                  />
-                )}
+                <img
+                  src={qrImageSrc}
+                  alt="UPI Payment QR Code"
+                  className="w-44 h-44 object-contain rounded"
+                />
               </div>
+
+              {/* DOWNLOAD QR BUTTON */}
+              <button
+                type="button"
+                onClick={handleDownloadPaymentQr}
+                className="w-full sm:w-auto px-4 py-2 bg-[#1d4ed8]/20 hover:bg-[#1d4ed8] text-[#38bdf8] hover:text-white border border-[#38bdf8]/50 rounded-lg text-xs font-label-stamp uppercase flex items-center justify-center gap-1.5 transition-all shadow active:scale-95 font-bold"
+                title="Download QR code image to pay via phone gallery"
+              >
+                <Download className="w-3.5 h-3.5 text-[#f6c86a]" />
+                <span>DOWNLOAD PAYMENT QR CODE</span>
+              </button>
 
               <div className="flex items-center gap-2 bg-[#070d1e] border border-[#2a3656] px-3.5 py-1.5 rounded-lg shadow-inner">
                 <span className="font-mono text-xs text-[#ffe8c0] font-bold">

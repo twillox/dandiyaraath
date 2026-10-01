@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, AlertCircle, Ticket } from 'lucide-react';
-import { loginWithGoogleFirebase } from '../lib/auth';
+import { loginWithGoogleFirebase, loginAsGateScanner } from '../lib/auth';
 
 export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = null, actionContext = null }) {
   if (!isOpen) return null;
@@ -119,6 +119,26 @@ export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = n
             </svg>
             <span>{loading ? 'AUTHENTICATING WITH GOOGLE...' : 'CONTINUE WITH GOOGLE'}</span>
           </button>
+
+          {/* Turnstile Gate Staff Scanner Quick Access */}
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                const passCode = window.prompt('Enter Gate Staff Passkey (e.g. GATE2026 or AUTH2026):', 'GATE2026');
+                if (passCode && (passCode.trim().toUpperCase() === 'GATE2026' || passCode.trim().toUpperCase() === 'AUTH2026' || passCode.trim().toUpperCase() === 'AUTH')) {
+                  const gateUser = loginAsGateScanner('Gate 01', 'Gate Security Staff');
+                  if (onSuccess) onSuccess(gateUser);
+                  onClose();
+                } else if (passCode) {
+                  setError('Invalid Gate Staff Passkey. Access denied.');
+                }
+              }}
+              className="text-xs text-[#f6c86a] hover:text-white underline font-mono tracking-wide"
+            >
+              Gate Staff Turnstile Access (Role: Auth)
+            </button>
+          </div>
 
           {/* Secure OAuth Assurance Footer */}
           <div className="pt-3 border-t border-[#2a3656]/60 flex items-center justify-center gap-1.5 text-center text-[11px] text-[#a5b4d4]">

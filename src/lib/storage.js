@@ -1,5 +1,5 @@
 import { db, isFirebaseConfigured } from './firebase';
-import { collection, doc, setDoc, getDocs, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 // Pass tier definitions matching DESIGN.md & code.html
 export const INITIAL_PASS_TIERS = [
@@ -352,42 +352,94 @@ export function saveBooking(newBooking) {
 
 export function findBooking(query) {
   if (!query) return null;
-  const q = query.trim().toUpperCase().replace('#', '');
-  const phoneClean = query.replace(/\D/g, '');
+  let raw = String(query).trim();
+
+  // Try parsing JSON if QR payload is JSON
+  if (raw.startsWith('{') && raw.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.ref || parsed.id) {
+        raw = parsed.ref || parsed.id;
+      }
+    } catch {}
+  }
+
+  // Extract reference pattern like DND-HYD-12345 if embedded in URL or string
+  const match = raw.match(/DND-HYD-[A-Z0-9]+/i);
+  const q = (match ? match[0] : raw).toUpperCase().replace('#', '');
+  const phoneClean = raw.replace(/\D/g, '');
   const bookings = getLocalBookings();
 
   return bookings.find(b => {
-    const bId = b.id.toUpperCase().replace('#', '');
-    const bRef = b.ref.toUpperCase().replace('#', '');
+    const bId = (b.id || '').toUpperCase().replace('#', '');
+    const bRef = (b.ref || '').toUpperCase().replace('#', '');
     const bPhone = (b.phone || '').replace(/\D/g, '');
-    const bEmail = (b.email || '').toLowerCase();
+    const bEmail = (b.email || b.userEmail || '').toLowerCase();
 
-    return bId === q || bRef === q || (phoneClean && bPhone.endsWith(phoneClean)) || bEmail === query.trim().toLowerCase();
+    return (
+      bId === q ||
+      bRef === q ||
+      (q.length >= 6 && (bId.includes(q) || bRef.includes(q))) ||
+      (phoneClean.length >= 10 && bPhone.endsWith(phoneClean)) ||
+      (bEmail && bEmail === raw.toLowerCase())
+    );
   }) || null;
 }
 
-export function updateBookingCheckIn(bookingId, isCheckedIn = true, gate = 'Gate 02') {
+export function updateBookingCheckIn(bookingIdOrRef, isCheckedIn = true, gate = 'Gate 02') {
   const bookings = getLocalBookings();
-  const index = bookings.findIndex(b => b.id === bookingId || b.ref === bookingId);
+  const b = findBooking(bookingIdOrRef);
+  if (!b) return null;
+
+  const index = bookings.findIndex(item => item.id === b.id);
   if (index === -1) return null;
 
-  bookings[index].checkedIn = isCheckedIn;
-  bookings[index].checkedInAt = isCheckedIn ? new Date().toISOString() : null;
-  if (gate) bookings[index].gate = gate;
+  // If already used and we are attempting to check in again
+  if (isCheckedIn && bookings[index].checkedIn) {
+    return {
+      ...bookings[index],
+      success: false,
+      alreadyUsed: true,
+      booking: bookings[index],
+      message: 'Pass has ALREADY BEEN USED!'
+    };
+  }
 
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+  const now = new Date().toISOString();
+  bookings[index].checkedIn = isCheckedIn;
+  bookings[index].checkedInAt = isCheckedIn ? now : null;
+  if (gate) {
+    bookings[index].gate = gate;
+    bookings[index].checkedInGate = gate;
+  }
+
+  try {
+    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+  } catch (err) {
+    console.warn('Quota warning in updateBookingCheckIn:', err);
+  }
 
   if (isFirebaseConfigured() && db) {
     try {
       const docRef = doc(db, 'bookings', bookings[index].id);
-      updateDoc(docRef, { checkedIn: isCheckedIn, checkedInAt: bookings[index].checkedInAt, gate }).catch(console.warn);
+      updateDoc(docRef, {
+        checkedIn: isCheckedIn,
+        checkedInAt: bookings[index].checkedInAt,
+        gate: bookings[index].gate,
+        checkedInGate: bookings[index].checkedInGate
+      }).catch(console.warn);
     } catch (e) {
       console.warn('Firebase update error:', e);
     }
   }
 
   notifyListeners();
-  return bookings[index];
+  return {
+    ...bookings[index],
+    success: true,
+    alreadyUsed: false,
+    booking: bookings[index]
+  };
 }
 
 export function updateBookingPaymentVerification(bookingId, status = 'VERIFIED', adminEmail = 'admin@dandiyaraat.com', notes = '') {
@@ -600,6 +652,38 @@ export function updateBookingDetails(bookingId, updatedFields) {
   notifyListeners();
   return bookings[index];
 }
+
+// ==========================================
+// Delete Booking (Admin Verification Action)
+// ==========================================
+export function deleteBooking(bookingId) {
+  const bookings = getLocalBookings();
+  const index = bookings.findIndex(b => b.id === bookingId || b.ref === bookingId);
+  if (index === -1) return false;
+
+  const targetId = bookings[index].id;
+  const updated = bookings.filter(b => b.id !== targetId);
+
+  try {
+    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('LocalStorage save error in deleteBooking:', err);
+  }
+
+  if (isFirebaseConfigured() && db) {
+    try {
+      const docRef = doc(db, 'bookings', targetId);
+      deleteDoc(docRef).catch(console.warn);
+    } catch (e) {
+      console.warn('Firebase deleteDoc error on deleteBooking:', e);
+    }
+  }
+
+  notifyListeners();
+  return true;
+}
+
+
 
 // Pull latest bookings and settings from Firestore if online
 export async function syncBookingsFromFirestore() {
