@@ -308,7 +308,33 @@ export function getLocalBookings() {
 export function saveBooking(newBooking) {
   const bookings = getLocalBookings();
   const updated = [newBooking, ...bookings];
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updated));
+
+  try {
+    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('LocalStorage quota warning in saveBooking, recovering space:', err);
+    // Graceful degradation: strip large screenshots from older bookings (keep only latest 3)
+    try {
+      const sanitized = updated.map((b, idx) => {
+        if (idx > 3 && b.paymentScreenshot) {
+          return { ...b, paymentScreenshot: null };
+        }
+        return b;
+      });
+      localStorage.setItem(BOOKINGS_KEY, JSON.stringify(sanitized));
+    } catch (err2) {
+      console.warn('Storage still full, storing recent bookings without older screenshots:', err2);
+      try {
+        const minimal = updated.slice(0, 15).map((b, idx) => {
+          if (idx > 1) return { ...b, paymentScreenshot: null };
+          return b;
+        });
+        localStorage.setItem(BOOKINGS_KEY, JSON.stringify(minimal));
+      } catch (err3) {
+        console.error('LocalStorage completely exhausted:', err3);
+      }
+    }
+  }
 
   // Sync to Firebase if configured
   if (isFirebaseConfigured() && db) {

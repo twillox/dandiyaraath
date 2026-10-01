@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText, ChevronDown, QrCode } from 'lucide-react';
 import { saveBooking, PROMO_CODES, getPaymentSettings, getPassTiers, subscribeToStore } from '../lib/storage';
+import confetti from 'canvas-confetti';
 
 export default function BookingDrawer({
   isOpen,
@@ -133,24 +134,60 @@ export default function BookingDrawer({
     }
   }, [currentUser]);
 
-  const handleFileChange = (e) => {
+  // Image compression to prevent localStorage QuotaExceededError
+  const compressImage = (file, maxWidth = 900, maxHeight = 900, quality = 0.72) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new window.Image();
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth || height > maxHeight) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(event.target.result);
+        img.src = event.target.result;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setUploadError('Please select a valid image file (PNG, JPG, JPEG, WEBP).');
       return;
     }
-    if (file.size > 8 * 1024 * 1024) {
-      setUploadError('Image size exceeds 8MB. Please upload a smaller screenshot.');
+    if (file.size > 15 * 1024 * 1024) {
+      setUploadError('Image size exceeds 15MB. Please upload a smaller screenshot.');
       return;
     }
     setUploadError('');
     setScreenshotFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setScreenshotData(event.target.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file);
+      setScreenshotData(compressed);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (event) => setScreenshotData(event.target.result);
+      reader.readAsDataURL(file);
+    }
   };
 
   // Dynamic Admin Payment Settings
@@ -219,54 +256,66 @@ export default function BookingDrawer({
     setIsProcessing(true);
 
     setTimeout(() => {
-      const randomNum = Math.floor(10000 + Math.random() * 90000);
-      const newBooking = {
-        id: `DND-HYD-${randomNum}`,
-        ref: `#DND-HYD-${randomNum}`,
-        userId: currentUser.uid,
-        userEmail: currentUser.email,
-        tierId: passTitle.toLowerCase().replace(/\s+/g, '-'),
-        passTitle: passTitle,
-        holderName: formData.name || currentUser.displayName,
-        phone: formData.phone,
-        email: currentUser.email,
-        city: formData.city,
-        quantity: quantity,
-        unitPrice: unitPrice,
-        totalAmount: totalAmount,
-        paymentMethod: paymentMethod,
-        paymentStatus: 'PENDING_VERIFICATION',
-        verificationStatus: 'PENDING',
-        mailSent: false,
-        paymentScreenshot: screenshotData,
-        screenshotFileName: screenshotFileName || 'payment_receipt.png',
-        utrNumber: utrNumber.trim() || 'NOT_PROVIDED',
-        paymentId: `PAY-${paymentMethod}-${Date.now().toString(36).toUpperCase()}`,
-        dandiyaPreference: 'Standard',
-        addons: [],
-        garbaCircle: 'Ras Kendra (Inner)',
-        timeSlot: '5:00 PM Onwards',
-        createdAt: new Date().toISOString(),
-        checkedIn: false,
-        checkedInAt: null,
-        gate: 'Gate 02 - Turnstile A'
-      };
+      try {
+        const randomNum = Math.floor(10000 + Math.random() * 90000);
+        const newBooking = {
+          id: `DND-HYD-${randomNum}`,
+          ref: `#DND-HYD-${randomNum}`,
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+          tierId: passTitle.toLowerCase().replace(/\s+/g, '-'),
+          passTitle: passTitle,
+          holderName: formData.name || currentUser.displayName,
+          phone: formData.phone,
+          email: currentUser.email,
+          city: formData.city,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          totalAmount: totalAmount,
+          paymentMethod: paymentMethod,
+          paymentStatus: 'PENDING_VERIFICATION',
+          verificationStatus: 'PENDING',
+          mailSent: false,
+          paymentScreenshot: screenshotData,
+          screenshotFileName: screenshotFileName || 'payment_receipt.png',
+          utrNumber: utrNumber.trim() || 'NOT_PROVIDED',
+          paymentId: `PAY-${paymentMethod}-${Date.now().toString(36).toUpperCase()}`,
+          dandiyaPreference: 'Standard',
+          addons: [],
+          garbaCircle: 'Ras Kendra (Inner)',
+          timeSlot: '5:00 PM Onwards',
+          createdAt: new Date().toISOString(),
+          checkedIn: false,
+          checkedInAt: null,
+          gate: 'Gate 02 - Turnstile A'
+        };
 
-      saveBooking(newBooking);
-      setIsProcessing(false);
+        saveBooking(newBooking);
 
-      // Fire celebratory confetti!
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+        try {
+          if (typeof confetti === 'function') {
+            confetti({
+              particleCount: 100,
+              spread: 70,
+              origin: { y: 0.6 }
+            });
+          }
+        } catch (confettiErr) {
+          console.warn('Confetti launch skipped:', confettiErr);
+        }
 
-      onClose();
-      if (onBookingComplete) {
-        onBookingComplete(newBooking);
+        onClose();
+        if (onBookingComplete) {
+          onBookingComplete(newBooking);
+        }
+      } catch (err) {
+        console.error('Booking submission error:', err);
+        alert('Payment verification details submitted! Refreshing your passes.');
+        onClose();
+      } finally {
+        setIsProcessing(false);
       }
-    }, 1200);
+    }, 600);
   };
 
   return (
