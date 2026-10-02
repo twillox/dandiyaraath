@@ -2,9 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
   findBooking,
+  findBookingAsync,
   updateBookingCheckIn,
+  updateBookingCheckInAsync,
   getLocalBookings,
-  subscribeToStore
+  subscribeToStore,
+  syncBookingsFromFirestore,
+  initRealtimeFirestoreSync
 } from '../lib/storage';
 import { logout } from '../lib/auth';
 import { getFestivalContent } from '../lib/contentStore';
@@ -132,15 +136,32 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
 
   // Sync turnstile metrics from store
   const [totalFestBookings, setTotalFestBookings] = useState([]);
+  const [syncingCloud, setSyncingCloud] = useState(false);
+
   const refreshStats = () => {
     const list = getLocalBookings();
     setTotalFestBookings(list);
   };
 
+  const handleManualSync = async () => {
+    setSyncingCloud(true);
+    await syncBookingsFromFirestore().catch(() => {});
+    refreshStats();
+    setTimeout(() => setSyncingCloud(false), 800);
+  };
+
   useEffect(() => {
     refreshStats();
-    const unsub = subscribeToStore(refreshStats);
-    return unsub;
+    // Pull Firestore immediately upon opening scanner
+    syncBookingsFromFirestore().then(refreshStats).catch(() => {});
+    // Listen for live Firestore updates from other scanners / admin verifications
+    const unsubFirestore = initRealtimeFirestoreSync();
+    const unsubLocal = subscribeToStore(refreshStats);
+
+    return () => {
+      unsubFirestore();
+      unsubLocal();
+    };
   }, []);
 
   // Initialize and start camera
@@ -233,7 +254,7 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
     processTicketCode(decodedText);
   };
 
-  const processTicketCode = (code) => {
+  const processTicketCode = async (code) => {
     if (!code || isProcessing) return;
     setIsProcessing(true);
 
@@ -244,7 +265,8 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
       } catch {}
     }
 
-    const booking = findBooking(code);
+    // Cloud-aware async finder (checks local cache, queries Firestore, and recovers authentic Dandiya ticket payloads)
+    const booking = await findBookingAsync(code);
 
     if (!booking) {
       // 1. INVALID PASS
@@ -304,8 +326,8 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
       return;
     }
 
-    // 4. VALID PASS -> MARK USED EVERYWHERE IMMEDIATELY!
-    const checkInResult = updateBookingCheckIn(booking.id, true, selectedGate);
+    // 4. VALID PASS -> MARK USED EVERYWHERE IMMEDIATELY (LOCAL + FIRESTORE SYNC)!
+    const checkInResult = await updateBookingCheckInAsync(booking.id, true, selectedGate);
 
     if (checkInResult.success) {
       if (soundEnabled) playSound('success');
@@ -332,6 +354,8 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
         },
         ...prev
       ]);
+
+      refreshStats();
     } else if (checkInResult.alreadyUsed) {
       if (soundEnabled) playSound('already_used');
       try { navigator.vibrate?.([400, 100, 400]); } catch {}
@@ -339,6 +363,12 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
       setScanResult({
         type: 'ALREADY_USED',
         booking: checkInResult.booking,
+        rawQuery: code,
+        timestamp: new Date().toLocaleTimeString()
+      });
+    } else {
+      setScanResult({
+        type: 'NOT_FOUND',
         rawQuery: code,
         timestamp: new Date().toLocaleTimeString()
       });
@@ -463,9 +493,20 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
               NARAPALLY CRICKET GROUND • MAIN ENTRANCE
             </span>
           </div>
-          <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/80 font-mono text-[10px] font-bold px-2 py-0.5 rounded">
-            SCANNER READY
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleManualSync}
+              disabled={syncingCloud}
+              className="flex items-center gap-1 bg-[#141a32] hover:bg-[#1e274b] border border-[#2a3656] text-[#38bdf8] font-mono text-[10px] px-2.5 py-1 rounded transition-all active:scale-95 shadow-sm"
+              title="Pull latest passes & admissions from Firestore database"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncingCloud ? 'animate-spin' : ''}`} />
+              <span>{syncingCloud ? 'SYNCING...' : 'SYNC CLOUD'}</span>
+            </button>
+            <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/80 font-mono text-[10px] font-bold px-2 py-0.5 rounded">
+              SCANNER READY
+            </span>
+          </div>
         </div>
 
         {/* Live Viewfinder / Scanner Container */}

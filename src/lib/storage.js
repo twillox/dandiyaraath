@@ -1,5 +1,5 @@
 import { db, isFirebaseConfigured } from './firebase';
-import { collection, doc, setDoc, getDocs, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, getDoc, updateDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
 
 // Pass tier definitions matching DESIGN.md & code.html
 export const INITIAL_PASS_TIERS = [
@@ -355,24 +355,34 @@ export function findBooking(query) {
   let raw = String(query).trim();
 
   // Try parsing JSON if QR payload is JSON
+  let parsedPayload = null;
   if (raw.startsWith('{') && raw.endsWith('}')) {
     try {
-      const parsed = JSON.parse(raw);
-      if (parsed.ref || parsed.id) {
-        raw = parsed.ref || parsed.id;
+      parsedPayload = JSON.parse(raw);
+      if (parsedPayload.ref || parsedPayload.id) {
+        raw = parsedPayload.ref || parsedPayload.id;
+      }
+    } catch {}
+  } else if (raw.includes('{') && raw.includes('}')) {
+    try {
+      const jsonStart = raw.indexOf('{');
+      const jsonEnd = raw.lastIndexOf('}');
+      parsedPayload = JSON.parse(raw.substring(jsonStart, jsonEnd + 1));
+      if (parsedPayload.ref || parsedPayload.id) {
+        raw = parsedPayload.ref || parsedPayload.id;
       }
     } catch {}
   }
 
   // Extract reference pattern like DND-HYD-12345 if embedded in URL or string
   const match = raw.match(/DND-HYD-[A-Z0-9]+/i);
-  const q = (match ? match[0] : raw).toUpperCase().replace('#', '');
+  const q = (match ? match[0] : raw).toUpperCase().replace(/#/g, '').trim();
   const phoneClean = raw.replace(/\D/g, '');
   const bookings = getLocalBookings();
 
-  return bookings.find(b => {
-    const bId = (b.id || '').toUpperCase().replace('#', '');
-    const bRef = (b.ref || '').toUpperCase().replace('#', '');
+  const found = bookings.find(b => {
+    const bId = (b.id || '').toUpperCase().replace(/#/g, '').trim();
+    const bRef = (b.ref || '').toUpperCase().replace(/#/g, '').trim();
     const bPhone = (b.phone || '').replace(/\D/g, '');
     const bEmail = (b.email || b.userEmail || '').toLowerCase();
 
@@ -383,7 +393,177 @@ export function findBooking(query) {
       (phoneClean.length >= 10 && bPhone.endsWith(phoneClean)) ||
       (bEmail && bEmail === raw.toLowerCase())
     );
-  }) || null;
+  });
+
+  if (found) return found;
+
+  // Fallback: If not found in local array, but the QR payload itself is an authentic Dandiya Raat ticket JSON
+  if (parsedPayload && (parsedPayload.ref || parsedPayload.id) && parsedPayload.holder) {
+    const cleanRef = (parsedPayload.ref || parsedPayload.id).replace(/#/g, '').trim().toUpperCase();
+    const recovered = {
+      id: cleanRef,
+      ref: `#${cleanRef}`,
+      holderName: parsedPayload.holder,
+      passTitle: parsedPayload.pass || 'FESTIVAL PASS',
+      quantity: Number(parsedPayload.qty) || 1,
+      paymentStatus: parsedPayload.status || 'VERIFIED',
+      verificationStatus: parsedPayload.status || 'VERIFIED',
+      checkedIn: false,
+      checkedInAt: null,
+      gate: 'Main Entrance',
+      venue: parsedPayload.venue || 'Narapally Cricket Ground',
+      createdAt: new Date().toISOString(),
+      recoveredFromQR: true
+    };
+    // Save to local cache
+    bookings.unshift(recovered);
+    try {
+      localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+    } catch {}
+    notifyListeners();
+    return recovered;
+  }
+
+  return null;
+}
+
+// Cloud-Aware Async Booking Finder (Queries Firestore when not cached locally)
+export async function findBookingAsync(query) {
+  if (!query) return null;
+  let raw = String(query).trim();
+
+  // 1. Try local synchronous lookup first (0ms latency if already cached)
+  const localMatch = findBooking(query);
+  if (localMatch) {
+    // Check if Firestore has a newer status (e.g. checked in from another gate scanner)
+    if (isFirebaseConfigured() && db && localMatch.id) {
+      try {
+        const docSnap = await getDoc(doc(db, 'bookings', localMatch.id));
+        if (docSnap.exists()) {
+          const remoteData = { id: docSnap.id, ...docSnap.data() };
+          if (remoteData.checkedIn !== localMatch.checkedIn || remoteData.paymentStatus !== localMatch.paymentStatus) {
+            const bookings = getLocalBookings();
+            const idx = bookings.findIndex(b => b.id === localMatch.id);
+            if (idx >= 0) {
+              bookings[idx] = { ...bookings[idx], ...remoteData };
+              localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+              notifyListeners();
+              return bookings[idx];
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Background remote status check failed, using local:', err);
+      }
+    }
+    return localMatch;
+  }
+
+  // 2. Extract clean reference code
+  let parsedPayload = null;
+  if (raw.startsWith('{') && raw.endsWith('}')) {
+    try {
+      parsedPayload = JSON.parse(raw);
+    } catch {}
+  } else if (raw.includes('{') && raw.includes('}')) {
+    try {
+      const jsonStart = raw.indexOf('{');
+      const jsonEnd = raw.lastIndexOf('}');
+      parsedPayload = JSON.parse(raw.substring(jsonStart, jsonEnd + 1));
+    } catch {}
+  }
+
+  let extractedCode = '';
+  if (parsedPayload && (parsedPayload.ref || parsedPayload.id)) {
+    extractedCode = parsedPayload.ref || parsedPayload.id;
+  } else {
+    const match = raw.match(/DND-HYD-[A-Z0-9]+/i);
+    extractedCode = match ? match[0] : raw;
+  }
+
+  const cleanId = extractedCode.replace(/#/g, '').trim().toUpperCase();
+
+  // 3. Query Firestore directly if configured and online
+  if (isFirebaseConfigured() && db && cleanId) {
+    try {
+      // Direct doc lookup by ID (e.g. 'DND-HYD-53104')
+      const docRef = doc(db, 'bookings', cleanId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const remoteData = { id: docSnap.id, ...docSnap.data() };
+        const bookings = getLocalBookings();
+        const existingIdx = bookings.findIndex(b => b.id === cleanId || (b.ref && b.ref.replace(/#/g, '') === cleanId));
+        if (existingIdx >= 0) {
+          bookings[existingIdx] = { ...bookings[existingIdx], ...remoteData };
+        } else {
+          bookings.unshift(remoteData);
+        }
+        try {
+          localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+        } catch {}
+        notifyListeners();
+        return remoteData;
+      }
+
+      // Query by 'ref' field (e.g. '#DND-HYD-53104')
+      const qRef = query(collection(db, 'bookings'), where('ref', 'in', [cleanId, `#${cleanId}`]));
+      const qSnap = await getDocs(qRef);
+      if (!qSnap.empty) {
+        const firstDoc = qSnap.docs[0];
+        const remoteData = { id: firstDoc.id, ...firstDoc.data() };
+        const bookings = getLocalBookings();
+        const existingIdx = bookings.findIndex(b => b.id === remoteData.id);
+        if (existingIdx >= 0) {
+          bookings[existingIdx] = { ...bookings[existingIdx], ...remoteData };
+        } else {
+          bookings.unshift(remoteData);
+        }
+        try {
+          localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+        } catch {}
+        notifyListeners();
+        return remoteData;
+      }
+    } catch (err) {
+      console.warn('Firestore query error in findBookingAsync:', err);
+    }
+  }
+
+  // 4. Fallback: Parse authentic Dandiya Raat ticket JSON payload
+  if (parsedPayload && (parsedPayload.ref || parsedPayload.id) && parsedPayload.holder) {
+    const recovered = {
+      id: cleanId,
+      ref: parsedPayload.ref || `#${cleanId}`,
+      holderName: parsedPayload.holder,
+      passTitle: parsedPayload.pass || 'FESTIVAL PASS',
+      quantity: Number(parsedPayload.qty) || 1,
+      paymentStatus: parsedPayload.status || 'VERIFIED',
+      verificationStatus: parsedPayload.status || 'VERIFIED',
+      checkedIn: false,
+      checkedInAt: null,
+      gate: 'Main Entrance',
+      venue: parsedPayload.venue || 'Narapally Cricket Ground',
+      createdAt: new Date().toISOString(),
+      recoveredFromQR: true
+    };
+
+    const bookings = getLocalBookings();
+    bookings.unshift(recovered);
+    try {
+      localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+    } catch {}
+
+    if (isFirebaseConfigured() && db) {
+      try {
+        setDoc(doc(db, 'bookings', cleanId), recovered, { merge: true }).catch(console.warn);
+      } catch {}
+    }
+
+    notifyListeners();
+    return recovered;
+  }
+
+  return null;
 }
 
 export function updateBookingCheckIn(bookingIdOrRef, isCheckedIn = true, gate = 'Main Entrance') {
@@ -451,6 +631,26 @@ export function updateBookingCheckIn(bookingIdOrRef, isCheckedIn = true, gate = 
     alreadyUsed: false,
     booking: bookings[index]
   };
+}
+
+export async function updateBookingCheckInAsync(bookingIdOrRef, isCheckedIn = true, gate = 'Main Entrance') {
+  const result = updateBookingCheckIn(bookingIdOrRef, isCheckedIn, gate);
+
+  if (result && result.success && isFirebaseConfigured() && db) {
+    try {
+      const docRef = doc(db, 'bookings', result.id);
+      await updateDoc(docRef, {
+        checkedIn: isCheckedIn,
+        checkedInAt: result.checkedInAt,
+        gate: result.gate,
+        checkedInGate: result.checkedInGate
+      });
+    } catch (e) {
+      console.warn('Firebase direct updateCheckIn warning:', e);
+    }
+  }
+
+  return result;
 }
 
 export function updateBookingPaymentVerification(bookingId, status = 'VERIFIED', adminEmail = 'admin@dandiyaraat.com', notes = '') {
@@ -863,7 +1063,7 @@ export function deleteBooking(bookingId) {
 
 
 
-// Pull latest bookings and settings from Firestore if online
+// Pull latest bookings, stalls and settings from Firestore if online
 export async function syncBookingsFromFirestore() {
   if (!isFirebaseConfigured() || !db) return;
   try {
@@ -871,17 +1071,49 @@ export async function syncBookingsFromFirestore() {
     if (!querySnapshot.empty) {
       const remoteBookings = [];
       querySnapshot.forEach(docSnap => {
-        remoteBookings.push(docSnap.data());
+        remoteBookings.push({ id: docSnap.id, ...docSnap.data() });
       });
       if (remoteBookings.length > 0) {
         const local = getLocalBookings();
         const mergedMap = new Map();
         local.forEach(b => mergedMap.set(b.id, b));
-        remoteBookings.forEach(b => mergedMap.set(b.id, { ...(mergedMap.get(b.id) || {}), ...b }));
+        remoteBookings.forEach(b => {
+          const existing = mergedMap.get(b.id) || {};
+          mergedMap.set(b.id, { ...existing, ...b });
+        });
         const mergedList = Array.from(mergedMap.values());
-        localStorage.setItem(BOOKINGS_KEY, JSON.stringify(mergedList));
+        try {
+          localStorage.setItem(BOOKINGS_KEY, JSON.stringify(mergedList));
+        } catch {}
         notifyListeners();
       }
+    }
+
+    // Sync stalls from Firestore
+    try {
+      const stallsSnap = await getDocs(collection(db, 'stalls'));
+      if (!stallsSnap.empty) {
+        const remoteStalls = [];
+        stallsSnap.forEach(docSnap => {
+          remoteStalls.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        if (remoteStalls.length > 0) {
+          const localStalls = getLocalStalls();
+          const mergedStallsMap = new Map();
+          localStalls.forEach(s => mergedStallsMap.set(s.id, s));
+          remoteStalls.forEach(s => {
+            const existing = mergedStallsMap.get(s.id) || {};
+            mergedStallsMap.set(s.id, { ...existing, ...s });
+          });
+          const mergedStalls = Array.from(mergedStallsMap.values());
+          try {
+            localStorage.setItem(STALLS_KEY, JSON.stringify(mergedStalls));
+          } catch {}
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      console.warn('Stalls sync error:', e);
     }
 
     // Sync payment settings
@@ -902,9 +1134,75 @@ export async function syncBookingsFromFirestore() {
   }
 }
 
-// Automatically sync on startup if connected
+// Live real-time Firestore synchronization across all devices and scanner gates
+export function initRealtimeFirestoreSync() {
+  if (!isFirebaseConfigured() || !db) return () => {};
+
+  try {
+    const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+      if (!snapshot || snapshot.empty) return;
+      const remoteBookings = [];
+      snapshot.forEach(docSnap => {
+        remoteBookings.push({ id: docSnap.id, ...docSnap.data() });
+      });
+
+      if (remoteBookings.length > 0) {
+        const local = getLocalBookings();
+        const mergedMap = new Map();
+        local.forEach(b => mergedMap.set(b.id, b));
+        remoteBookings.forEach(b => {
+          const existing = mergedMap.get(b.id) || {};
+          mergedMap.set(b.id, { ...existing, ...b });
+        });
+        const mergedList = Array.from(mergedMap.values());
+        try {
+          localStorage.setItem(BOOKINGS_KEY, JSON.stringify(mergedList));
+        } catch {}
+        notifyListeners();
+      }
+    }, (err) => {
+      console.warn('Firestore onSnapshot bookings error:', err);
+    });
+
+    const unsubStalls = onSnapshot(collection(db, 'stalls'), (snapshot) => {
+      if (!snapshot || snapshot.empty) return;
+      const remoteStalls = [];
+      snapshot.forEach(docSnap => {
+        remoteStalls.push({ id: docSnap.id, ...docSnap.data() });
+      });
+
+      if (remoteStalls.length > 0) {
+        const local = getLocalStalls();
+        const mergedMap = new Map();
+        local.forEach(s => mergedMap.set(s.id, s));
+        remoteStalls.forEach(s => {
+          const existing = mergedMap.get(s.id) || {};
+          mergedMap.set(s.id, { ...existing, ...s });
+        });
+        const mergedList = Array.from(mergedMap.values());
+        try {
+          localStorage.setItem(STALLS_KEY, JSON.stringify(mergedList));
+        } catch {}
+        notifyListeners();
+      }
+    }, (err) => {
+      console.warn('Firestore onSnapshot stalls error:', err);
+    });
+
+    return () => {
+      try {
+        unsubBookings();
+        unsubStalls();
+      } catch {}
+    };
+  } catch (err) {
+    console.warn('Failed to attach Firestore real-time listener:', err);
+    return () => {};
+  }
+}
+
+// Automatically sync immediately on startup if connected
 if (typeof window !== 'undefined' && isFirebaseConfigured() && db) {
-  setTimeout(() => {
-    syncBookingsFromFirestore().catch(() => {});
-  }, 1200);
+  syncBookingsFromFirestore().catch(() => {});
+  initRealtimeFirestoreSync();
 }

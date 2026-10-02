@@ -16,7 +16,9 @@ import {
   deleteBooking,
   getLocalStalls,
   updateStallDetails,
-  deleteStallApplication
+  deleteStallApplication,
+  syncBookingsFromFirestore,
+  initRealtimeFirestoreSync
 } from '../lib/storage';
 import {
   getFestivalContent,
@@ -191,18 +193,25 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
   const [selectedStallForModal, setSelectedStallForModal] = useState(null);
 
   useEffect(() => {
-    setBookings(getLocalBookings());
-    setPaymentSettings(getPaymentSettings());
-    setPassTiers(getPassTiers());
-    setStalls(getLocalStalls());
-    const unsubStore = subscribeToStore(() => {
+    const updateLocalState = () => {
       setBookings(getLocalBookings());
       setPaymentSettings(getPaymentSettings());
       setPassTiers(getPassTiers());
       setStalls(getLocalStalls());
-    });
+    };
+
+    updateLocalState();
+
+    // Pull Firestore data immediately
+    syncBookingsFromFirestore().then(updateLocalState).catch(() => {});
+
+    // Listen for real-time Firestore changes from turnstile scanners and visitors
+    const unsubFirestore = initRealtimeFirestoreSync();
+    const unsubStore = subscribeToStore(updateLocalState);
     const unsubCms = subscribeToCms(() => setContent(getFestivalContent()));
+
     return () => {
+      unsubFirestore();
       unsubStore();
       unsubCms();
     };

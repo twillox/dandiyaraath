@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getLocalBookings, subscribeToStore } from '../lib/storage';
+import { getLocalBookings, subscribeToStore, syncBookingsFromFirestore } from '../lib/storage';
 import { Ticket, ArrowRight, Share2, CheckCircle2, AlertCircle, Clock, Mail, LogIn, Plus, Download, XCircle, AlertTriangle } from 'lucide-react';
 import DigitalPassModal from '../components/DigitalPassModal';
 import { exportPassToPdf } from '../lib/pdfGenerator';
@@ -32,6 +32,7 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
 
   useEffect(() => {
     refreshPasses();
+    syncBookingsFromFirestore().then(refreshPasses).catch(() => {});
     const unsub = subscribeToStore(() => {
       refreshPasses();
     });
