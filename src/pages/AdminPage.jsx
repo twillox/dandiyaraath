@@ -12,6 +12,12 @@ import {
   updatePassTier,
   addPassTier,
   deletePassTier,
+  getCoupons,
+  saveCoupons,
+  addCoupon,
+  updateCoupon,
+  deleteCoupon,
+  toggleCouponActive,
   updateBookingDetails,
   deleteBooking,
   getLocalStalls,
@@ -73,7 +79,11 @@ import {
   PhoneCall,
   MessageSquare,
   Phone,
-  Zap
+  Zap,
+  Ticket,
+  Percent,
+  Sparkles,
+  Calendar
 } from 'lucide-react';
 
 export default function AdminPage({ currentUser, onOpenAuth }) {
@@ -192,12 +202,21 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
   const [stallFilterStatus, setStallFilterStatus] = useState('all');
   const [selectedStallForModal, setSelectedStallForModal] = useState(null);
 
+  // Coupons & Promo Codes State
+  const [coupons, setCoupons] = useState(getCoupons());
+  const [couponSearchQuery, setCouponSearchQuery] = useState('');
+  const [couponFilterStatus, setCouponFilterStatus] = useState('all');
+  const [editingCoupon, setEditingCoupon] = useState(null);
+  const [isAddingCoupon, setIsAddingCoupon] = useState(false);
+  const [copiedCouponCode, setCopiedCouponCode] = useState(null);
+
   useEffect(() => {
     const updateLocalState = () => {
       setBookings(getLocalBookings());
       setPaymentSettings(getPaymentSettings());
       setPassTiers(getPassTiers());
       setStalls(getLocalStalls());
+      setCoupons(getCoupons());
     };
 
     updateLocalState();
@@ -278,6 +297,67 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
       setAdminToast(`🗑️ Pass tier "${tierName}" removed.`);
       setTimeout(() => setAdminToast(null), 4000);
     }
+  };
+
+  // Coupon Handlers
+  const handleSaveCoupon = (couponData) => {
+    try {
+      if (isAddingCoupon) {
+        addCoupon(couponData);
+        setAdminToast(`✅ New coupon code "${couponData.code}" created! Live on checkout.`);
+        setIsAddingCoupon(false);
+      } else if (editingCoupon) {
+        updateCoupon(editingCoupon.id, couponData);
+        setAdminToast(`✅ Coupon "${couponData.code}" successfully updated!`);
+        setEditingCoupon(null);
+      }
+      setCoupons(getCoupons());
+      setTimeout(() => setAdminToast(null), 4000);
+    } catch (err) {
+      alert(err.message || 'Error saving coupon');
+    }
+  };
+
+  const handleDeleteCoupon = (couponId, couponCode) => {
+    if (window.confirm(`⚠️ PERMANENTLY REMOVE COUPON?\n\nAre you sure you want to delete coupon "${couponCode}"?\n\nThis coupon will no longer be valid for pass purchases.`)) {
+      deleteCoupon(couponId);
+      setCoupons(getCoupons());
+      if (editingCoupon && editingCoupon.id === couponId) setEditingCoupon(null);
+      setAdminToast(`🗑️ Coupon "${couponCode}" deleted permanently.`);
+      setTimeout(() => setAdminToast(null), 4000);
+    }
+  };
+
+  const handleToggleCoupon = (couponId, couponCode, currentActive) => {
+    toggleCouponActive(couponId);
+    setCoupons(getCoupons());
+    setAdminToast(`⚡ Coupon "${couponCode}" is now ${currentActive ? 'PAUSED / INACTIVE' : 'LIVE & ACTIVE'}.`);
+    setTimeout(() => setAdminToast(null), 4000);
+  };
+
+  const exportCouponsToCSV = () => {
+    const headers = ['Code', 'Type', 'Value', 'Min Spend', 'Max Discount', 'Label', 'Description', 'Active', 'Used Count', 'Usage Limit', 'Expiry Date'];
+    const rows = filteredCoupons.map(c => [
+      `"${c.code}"`,
+      c.discountType,
+      c.discountValue,
+      c.minSpend || 0,
+      c.maxDiscount || 'None',
+      `"${(c.label || '').replace(/"/g, '""')}"`,
+      `"${(c.description || '').replace(/"/g, '""')}"`,
+      c.isActive ? 'YES' : 'NO',
+      c.usedCount || 0,
+      c.usageLimit || 'Unlimited',
+      c.expiryDate || 'No Expiry'
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Dandiya_Coupons_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Attendee Pass Edit Handler
@@ -538,6 +618,30 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
     document.body.removeChild(link);
   };
 
+  // Coupon Metrics & Filtered List
+  const activeCouponsCount = coupons.filter(c => c.isActive !== false && (!c.expiryDate || new Date(c.expiryDate + 'T23:59:59') >= new Date())).length;
+  const totalRedemptions = coupons.reduce((sum, c) => sum + (c.usedCount || 0), 0);
+  const estimatedSavingsGiven = coupons.reduce((sum, c) => {
+    const val = c.discountType === 'percent' ? Math.min(c.maxDiscount || 250, 200) : c.discountValue;
+    return sum + (val * (c.usedCount || 0));
+  }, 0);
+
+  const filteredCoupons = coupons.filter(c => {
+    const q = couponSearchQuery.toLowerCase().trim();
+    const matchesQuery = !q || (
+      (c.code && c.code.toLowerCase().includes(q)) ||
+      (c.label && c.label.toLowerCase().includes(q)) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+    if (!matchesQuery) return false;
+
+    const isExpired = c.expiryDate && new Date(c.expiryDate + 'T23:59:59') < new Date();
+    if (couponFilterStatus === 'active') return c.isActive !== false && !isExpired;
+    if (couponFilterStatus === 'inactive') return c.isActive === false;
+    if (couponFilterStatus === 'expired') return isExpired;
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-[#070d1e] text-[#dce1ff] pb-16">
       {/* Top Header */}
@@ -559,6 +663,7 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
               { id: 'cms', label: 'EDIT CONTENT & IMAGES' },
               { id: 'bookings', label: 'ATTENDEES & VERIFICATION', badge: pendingVerificationCount },
               { id: 'stalls', label: 'STALL REGISTRATIONS', badge: pendingStallsCount },
+              { id: 'coupons', label: 'COUPONS & PROMOS', badge: activeCouponsCount },
               { id: 'payment', label: 'PAYMENT & UPI QR' },
               { id: 'tiers', label: 'PASS TIERS & PRICING' },
               { id: 'checkin', label: 'TURNSTILE SCAN' },
@@ -1234,8 +1339,15 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                           </td>
 
                           {/* Total */}
-                          <td className="p-3 font-mono font-bold text-white text-sm">
-                            ₹{b.totalAmount}
+                          <td className="p-3 font-mono">
+                            <span className="font-bold text-white text-sm block">₹{b.totalAmount}</span>
+                            {b.couponCode && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/80 border border-emerald-500/50 px-1.5 py-0.5 rounded font-mono mt-0.5">
+                                <Ticket className="w-2.5 h-2.5" />
+                                <span>{b.couponCode}</span>
+                                {b.discountAmount > 0 && <span className="text-[#f6c86a]">(-₹{b.discountAmount})</span>}
+                              </span>
+                            )}
                           </td>
 
                           {/* Payment Proof (Screenshot & UTR) */}
@@ -1717,6 +1829,323 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: FESTIVAL COUPONS & PROMO CODE ENGINE */}
+        {activeTab === 'coupons' && (
+          <div className="space-y-6">
+            <div className="bg-[#141a32] border-2 border-[#2a3656] rounded-xl p-6 poster-shadow-dark">
+              {/* Header Strip */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#2a3656] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#1d4ed8]/30 border border-[#38bdf8] flex items-center justify-center text-[#f6c86a]">
+                    <Ticket className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-headline-sm text-2xl text-white uppercase leading-none">
+                      FESTIVAL COUPONS & PROMO CODE ENGINE
+                    </h3>
+                    <span className="font-label-stamp text-[10px] text-[#38bdf8] uppercase">
+                      MANAGE DISCOUNT VOUCHERS, PERCENTAGE OFF, FLAT OFF, EXPIRY DATES & USAGE LIMITS
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCoupon(null);
+                      setIsAddingCoupon(true);
+                    }}
+                    className="px-4 py-2.5 bg-[#1d4ed8] hover:bg-[#2563eb] text-white rounded-lg text-xs font-label-stamp uppercase flex items-center gap-2 font-bold shadow-lg poster-shadow-dark transition-transform active:scale-95"
+                  >
+                    <Plus className="w-4 h-4 text-[#f6c86a]" />
+                    <span>ADD NEW COUPON</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Coupon Metrics */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                <div className="bg-[#0b1229] border border-[#2a3656] p-3.5 rounded-xl">
+                  <span className="font-label-stamp text-[10px] uppercase text-[#a5b4d4] block">TOTAL COUPONS</span>
+                  <span className="font-display-hero text-2xl text-white block mt-0.5">{coupons.length}</span>
+                  <span className="text-[10px] font-mono text-[#38bdf8]">System Vouchers</span>
+                </div>
+                <div className="bg-[#0b1229] border border-[#2a3656] p-3.5 rounded-xl">
+                  <span className="font-label-stamp text-[10px] uppercase text-emerald-400 block flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>ACTIVE & LIVE</span>
+                  </span>
+                  <span className="font-display-hero text-2xl text-emerald-400 block mt-0.5">{activeCouponsCount}</span>
+                  <span className="text-[10px] font-mono text-slate-400">Checkout Redeemable</span>
+                </div>
+                <div className="bg-[#0b1229] border border-[#2a3656] p-3.5 rounded-xl">
+                  <span className="font-label-stamp text-[10px] uppercase text-[#f6c86a] block">TOTAL REDEMPTIONS</span>
+                  <span className="font-display-hero text-2xl text-[#f6c86a] block mt-0.5">{totalRedemptions}</span>
+                  <span className="text-[10px] font-mono text-slate-400">Passes Discounted</span>
+                </div>
+                <div className="bg-[#0b1229] border border-[#2a3656] p-3.5 rounded-xl">
+                  <span className="font-label-stamp text-[10px] uppercase text-[#38bdf8] block">ATTENDEE SAVINGS</span>
+                  <span className="font-display-hero text-2xl text-[#ffe8c0] block mt-0.5">₹{estimatedSavingsGiven.toLocaleString()}</span>
+                  <span className="text-[10px] font-mono text-slate-400">Festival Promo Value</span>
+                </div>
+              </div>
+
+              {/* Search, Filter & Actions Toolbar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 pt-4 border-t border-[#2a3656]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Search coupon code or terms..."
+                      value={couponSearchQuery}
+                      onChange={e => setCouponSearchQuery(e.target.value)}
+                      className="bg-[#0b1229] border border-[#2a3656] pl-9 pr-3 py-1.5 text-xs text-white rounded-lg w-64 focus:border-[#38bdf8] outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-[#0b1229] border border-[#2a3656] p-1 rounded-lg">
+                    {[
+                      { id: 'all', label: `ALL (${coupons.length})` },
+                      { id: 'active', label: `ACTIVE (${activeCouponsCount})` },
+                      { id: 'inactive', label: `PAUSED (${coupons.filter(c => c.isActive === false).length})` },
+                      { id: 'expired', label: `EXPIRED (${coupons.filter(c => c.expiryDate && new Date(c.expiryDate + 'T23:59:59') < new Date()).length})` }
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setCouponFilterStatus(f.id)}
+                        className={`px-2.5 py-1 rounded text-[10px] font-label-stamp uppercase font-bold transition-colors ${
+                          couponFilterStatus === f.id
+                            ? 'bg-[#1d4ed8] text-white shadow'
+                            : 'text-[#a5b4d4] hover:text-white'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={exportCouponsToCSV}
+                    className="bg-[#0b1229] hover:bg-[#181e36] text-[#ffe8c0] border border-[#2a3656] px-3.5 py-1.5 text-xs uppercase font-label-stamp font-bold rounded-lg flex items-center gap-1.5 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#38bdf8]" />
+                    <span>EXPORT CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Coupons List / Grid */}
+              {filteredCoupons.length === 0 ? (
+                <div className="p-12 text-center bg-[#0b1229] border-2 border-dashed border-[#2a3656] rounded-2xl mt-6">
+                  <Ticket className="w-12 h-12 text-slate-500 mx-auto mb-3 opacity-60" />
+                  <h4 className="font-headline-sm text-lg text-white uppercase mb-1">NO COUPONS FOUND</h4>
+                  <p className="text-xs text-[#a5b4d4] max-w-md mx-auto mb-4">
+                    {couponSearchQuery || couponFilterStatus !== 'all'
+                      ? 'No promo codes match your current search or status filter.'
+                      : 'No festival promo coupons are currently registered in the database.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCoupon(null);
+                      setIsAddingCoupon(true);
+                    }}
+                    className="px-4 py-2 bg-[#1d4ed8] hover:bg-[#2563eb] text-white rounded-lg text-xs font-label-stamp uppercase font-bold inline-flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4 text-[#f6c86a]" />
+                    <span>CREATE FIRST COUPON</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
+                  {filteredCoupons.map((c) => {
+                    const isExpired = c.expiryDate && new Date(c.expiryDate + 'T23:59:59') < new Date();
+                    const isPaused = c.isActive === false;
+                    const usagePercent = c.usageLimit ? Math.min(100, Math.round(((c.usedCount || 0) / c.usageLimit) * 100)) : null;
+
+                    return (
+                      <div
+                        key={c.id}
+                        className={`bg-[#0b1229] border-2 rounded-2xl p-5 flex flex-col justify-between space-y-4 transition-all relative overflow-hidden ${
+                          isPaused || isExpired
+                            ? 'border-[#2a3656] opacity-75'
+                            : 'border-[#2a3656] hover:border-[#38bdf8] poster-shadow-dark'
+                        }`}
+                      >
+                        {/* Top Badges */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 bg-[#1d4ed8]/30 border border-[#38bdf8]/60 text-[#38bdf8] text-[9px] font-label-stamp uppercase font-bold rounded">
+                            {c.discountType === 'percent' ? 'PERCENT DISCOUNT' : 'FLAT VOUCHER'}
+                          </span>
+
+                          {isExpired ? (
+                            <span className="px-2 py-0.5 bg-red-950/70 border border-red-500/50 text-red-300 text-[9px] font-mono font-bold rounded">
+                              EXPIRED
+                            </span>
+                          ) : isPaused ? (
+                            <span className="px-2 py-0.5 bg-amber-950/70 border border-amber-500/50 text-amber-300 text-[9px] font-mono font-bold rounded">
+                              PAUSED
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-[9px] font-mono font-bold rounded flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                              <span>LIVE</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Ticket Voucher Cutout Container */}
+                        <div className="bg-[#121936] border border-dashed border-[#38bdf8]/40 rounded-xl p-3.5 flex items-center justify-between relative shadow-inner">
+                          <div>
+                            <span className="text-[9px] font-label-stamp uppercase text-slate-400 block mb-0.5">
+                              COUPON CODE
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xl sm:text-2xl font-black text-white tracking-wider">
+                                {c.code}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(c.code);
+                                  setCopiedCouponCode(c.code);
+                                  setTimeout(() => setCopiedCouponCode(null), 1800);
+                                }}
+                                className="p-1 hover:bg-[#1f284d] text-slate-400 hover:text-white rounded transition-colors"
+                                title="Copy coupon code"
+                              >
+                                {copiedCouponCode === c.code ? (
+                                  <span className="text-[10px] text-emerald-400 font-mono font-bold">COPIED!</span>
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5 text-[#38bdf8]" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="font-headline-sm text-2xl text-[#f6c86a] block leading-none">
+                              {c.discountType === 'percent' ? `${c.discountValue}%` : `₹${c.discountValue}`}
+                            </span>
+                            <span className="text-[10px] font-label-stamp uppercase text-[#38bdf8] font-bold">
+                              OFF PASSES
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Title and Description */}
+                        <div className="space-y-1">
+                          <h4 className="font-headline-sm text-lg text-white uppercase leading-snug">
+                            {c.label}
+                          </h4>
+                          <p className="text-xs text-[#a5b4d4] line-clamp-2 leading-relaxed">
+                            {c.description || 'Valid on all festival passes at checkout.'}
+                          </p>
+                        </div>
+
+                        {/* Parameters Grid */}
+                        <div className="p-3 bg-[#070d1e] rounded-xl border border-[#2a3656] space-y-2 text-xs font-mono">
+                          <div className="flex items-center justify-between text-slate-300">
+                            <span className="text-slate-400">Min Cart Spend:</span>
+                            <span className="font-bold text-white">
+                              {c.minSpend > 0 ? `₹${c.minSpend}` : '₹0 (Any cart)'}
+                            </span>
+                          </div>
+
+                          {c.discountType === 'percent' && (
+                            <div className="flex items-center justify-between text-slate-300">
+                              <span className="text-slate-400">Max Discount:</span>
+                              <span className="font-bold text-[#f6c86a]">
+                                {c.maxDiscount ? `₹${c.maxDiscount} cap` : 'No Cap'}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between text-slate-300">
+                            <span className="text-slate-400">Valid Until:</span>
+                            <span className="font-bold text-white">
+                              {c.expiryDate
+                                ? new Date(c.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                : 'Ongoing / No Expiry'}
+                            </span>
+                          </div>
+
+                          {/* Usage Progress */}
+                          <div className="pt-1.5 border-t border-[#1e2748]">
+                            <div className="flex items-center justify-between text-[11px] mb-1">
+                              <span className="text-slate-400">Redemptions:</span>
+                              <span className="font-bold text-[#38bdf8]">
+                                {c.usedCount || 0} / {c.usageLimit || '∞'} used
+                              </span>
+                            </div>
+                            {usagePercent !== null && (
+                              <div className="w-full h-1.5 bg-[#141a32] rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    usagePercent >= 90 ? 'bg-red-400' : 'bg-[#38bdf8]'
+                                  }`}
+                                  style={{ width: `${usagePercent}%` }}
+                                ></div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-[#2a3656]">
+                          {/* Pause/Activate toggle */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCoupon(c.id, c.code, c.isActive !== false)}
+                            className={`px-3 py-2 text-xs font-label-stamp uppercase rounded-lg border font-bold flex items-center gap-1 transition-colors ${
+                              c.isActive !== false
+                                ? 'bg-amber-950/40 hover:bg-amber-900 border-amber-600/60 text-amber-300'
+                                : 'bg-emerald-950/40 hover:bg-emerald-900 border-emerald-600/60 text-emerald-300'
+                            }`}
+                            title={c.isActive !== false ? 'Pause coupon redemption' : 'Activate coupon'}
+                          >
+                            <Zap className="w-3 h-3" />
+                            <span>{c.isActive !== false ? 'PAUSE' : 'ACTIVATE'}</span>
+                          </button>
+
+                          {/* Edit button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingCoupon(false);
+                              setEditingCoupon(c);
+                            }}
+                            className="flex-1 py-2 bg-[#181e36] hover:bg-[#20294a] text-white border border-[#2a3656] hover:border-[#38bdf8] text-xs font-label-stamp uppercase rounded-lg flex items-center justify-center gap-1.5 font-bold transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-[#f6c86a]" />
+                            <span>EDIT</span>
+                          </button>
+
+                          {/* Delete button */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCoupon(c.id, c.code)}
+                            className="p-2 bg-red-950/40 hover:bg-red-900 border border-red-700/60 text-red-300 hover:text-white rounded-lg transition-colors"
+                            title="Delete coupon permanently"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2397,6 +2826,19 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
           onDelete={handleDeleteStall}
         />
       )}
+
+      {/* EDIT / CREATE COUPON MODAL */}
+      {(editingCoupon || isAddingCoupon) && (
+        <EditCouponModal
+          coupon={editingCoupon}
+          isNew={isAddingCoupon}
+          onClose={() => {
+            setEditingCoupon(null);
+            setIsAddingCoupon(false);
+          }}
+          onSave={handleSaveCoupon}
+        />
+      )}
     </div>
   );
 }
@@ -3034,6 +3476,304 @@ function ManageStallModal({ stall, onClose, onSave, onDelete }) {
                 <span>SAVE & UPDATE STALL</span>
               </button>
             </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// SUBCOMPONENT: EDIT / CREATE COUPON MODAL
+// ==========================================
+function EditCouponModal({ coupon, isNew, onClose, onSave }) {
+  const [formData, setFormData] = useState({
+    code: coupon?.code || '',
+    label: coupon?.label || '',
+    description: coupon?.description || '',
+    discountType: coupon?.discountType || 'percent',
+    discountValue: coupon?.discountValue || 15,
+    minSpend: coupon?.minSpend || 0,
+    maxDiscount: coupon?.maxDiscount !== undefined && coupon?.maxDiscount !== null ? coupon.maxDiscount : 500,
+    usageLimit: coupon?.usageLimit || 500,
+    usedCount: coupon?.usedCount || 0,
+    expiryDate: coupon?.expiryDate || '2026-10-31',
+    isActive: coupon ? coupon.isActive !== false : true
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const cleanCode = (formData.code || '').trim().toUpperCase();
+    if (!cleanCode) {
+      alert('Please enter a valid coupon code (e.g. GARBA2026).');
+      return;
+    }
+    if (!formData.discountValue || Number(formData.discountValue) <= 0) {
+      alert('Please enter a valid discount value greater than 0.');
+      return;
+    }
+
+    onSave({
+      ...formData,
+      code: cleanCode,
+      label: formData.label.trim() || `${cleanCode} Coupon`,
+      description: formData.description.trim(),
+      discountValue: Number(formData.discountValue),
+      minSpend: Number(formData.minSpend) || 0,
+      maxDiscount: formData.discountType === 'percent' && formData.maxDiscount ? Number(formData.maxDiscount) : null,
+      usageLimit: formData.usageLimit ? Number(formData.usageLimit) : null,
+      usedCount: Number(formData.usedCount) || 0
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-[#141a32] border-2 border-[#38bdf8] rounded-2xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden poster-shadow-dark shadow-2xl">
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b border-[#2a3656] flex items-center justify-between bg-[#0b1229]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#1d4ed8]/30 border border-[#38bdf8] flex items-center justify-center text-[#f6c86a]">
+              <Ticket className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-headline-sm text-xl text-white uppercase tracking-wide">
+                {isNew ? 'CREATE NEW FESTIVAL COUPON' : `EDIT COUPON: ${coupon?.code}`}
+              </h3>
+              <span className="font-label-stamp text-[10px] text-[#38bdf8] uppercase">
+                DISCOUNT RULES APPLY INSTANTLY ACROSS CHECKOUT & PASS PURCHASES
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-[#181e36] text-slate-400 hover:text-white flex items-center justify-center border border-[#2a3656]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 flex-1">
+          {/* Coupon Code & Active Toggle */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                COUPON CODE *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.code}
+                onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase().replace(/\s+/g, '') })}
+                placeholder="e.g. GARBA2026, FESTIVAL50"
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-sm text-white font-mono font-bold uppercase tracking-wider rounded-lg focus:border-[#38bdf8] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                STATUS
+              </label>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                className={`w-full p-2.5 rounded-lg border text-xs font-label-stamp uppercase font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                  formData.isActive
+                    ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300'
+                    : 'bg-amber-950/60 border-amber-500 text-amber-300'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>{formData.isActive ? 'ACTIVE' : 'PAUSED'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Discount Type & Value */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                DISCOUNT TYPE *
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, discountType: 'percent' })}
+                  className={`p-2.5 rounded-lg border text-xs font-label-stamp uppercase font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    formData.discountType === 'percent'
+                      ? 'bg-[#1d4ed8] border-[#38bdf8] text-white shadow-md'
+                      : 'bg-[#0b1229] border-[#2a3656] text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Percent className="w-3.5 h-3.5" />
+                  <span>PERCENT (%)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, discountType: 'flat' })}
+                  className={`p-2.5 rounded-lg border text-xs font-label-stamp uppercase font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    formData.discountType === 'flat'
+                      ? 'bg-[#1d4ed8] border-[#38bdf8] text-white shadow-md'
+                      : 'bg-[#0b1229] border-[#2a3656] text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  <span>FLAT CASH (₹)</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                {formData.discountType === 'percent' ? 'DISCOUNT PERCENTAGE (%) *' : 'FLAT DISCOUNT AMOUNT (₹) *'}
+              </label>
+              <input
+                type="number"
+                required
+                min="1"
+                max={formData.discountType === 'percent' ? '100' : '100000'}
+                value={formData.discountValue}
+                onChange={e => setFormData({ ...formData, discountValue: e.target.value })}
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-sm text-[#f6c86a] font-mono font-bold rounded-lg focus:border-[#38bdf8] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Label / Heading */}
+          <div>
+            <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+              COUPON TITLE / HEADING *
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.label}
+              onChange={e => setFormData({ ...formData, label: e.target.value })}
+              placeholder="e.g. 15% Off Festival Special"
+              className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-sm text-white rounded-lg focus:border-[#38bdf8] focus:outline-none"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+              OFFER TERMS & DESCRIPTION
+            </label>
+            <textarea
+              rows={2}
+              value={formData.description}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              placeholder="e.g. Flat 15% instant savings on all festival pass tiers (maximum discount ₹500)."
+              className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-xs text-white rounded-lg focus:border-[#38bdf8] focus:outline-none leading-relaxed"
+            />
+          </div>
+
+          {/* Min Spend, Max Cap, Expiry */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                MIN CART SPEND (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.minSpend}
+                onChange={e => setFormData({ ...formData, minSpend: e.target.value })}
+                placeholder="0 for no minimum"
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2 text-xs text-white font-mono rounded-lg focus:border-[#38bdf8] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                {formData.discountType === 'percent' ? 'MAX DISCOUNT CAP (₹)' : 'MAX CAP (OPTIONAL)'}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.maxDiscount || ''}
+                onChange={e => setFormData({ ...formData, maxDiscount: e.target.value })}
+                placeholder="Leave blank for none"
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2 text-xs text-white font-mono rounded-lg focus:border-[#38bdf8] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                EXPIRY DATE
+              </label>
+              <input
+                type="date"
+                value={formData.expiryDate}
+                onChange={e => setFormData({ ...formData, expiryDate: e.target.value })}
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2 text-xs text-white rounded-lg focus:border-[#38bdf8] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Usage Limit & Used Count */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                TOTAL USAGE LIMIT (REDEMPTIONS)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={formData.usageLimit || ''}
+                onChange={e => setFormData({ ...formData, usageLimit: e.target.value })}
+                placeholder="Leave blank for unlimited"
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2 text-xs text-white font-mono rounded-lg focus:border-[#38bdf8] focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                ALREADY USED COUNT
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.usedCount}
+                onChange={e => setFormData({ ...formData, usedCount: e.target.value })}
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2 text-xs text-slate-300 font-mono rounded-lg focus:border-[#38bdf8] focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Live Preview Strip */}
+          <div className="p-3 bg-[#0a153d] border border-[#38bdf8]/40 rounded-xl space-y-1.5">
+            <span className="font-label-stamp text-[10px] text-[#38bdf8] uppercase font-bold block">
+              LIVE PREVIEW ON CHECKOUT
+            </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Ticket className="w-4 h-4 text-[#f6c86a]" />
+                <span className="font-mono font-bold text-white uppercase">{formData.code || 'COUPON_CODE'}</span>
+                <span className="text-xs text-slate-300">— {formData.label || 'Discount Title'}</span>
+              </div>
+              <span className="font-mono font-bold text-sm text-[#f6c86a]">
+                {formData.discountType === 'percent' ? `${formData.discountValue || 0}% OFF` : `₹${formData.discountValue || 0} OFF`}
+              </span>
+            </div>
+          </div>
+
+          {/* Modal Actions */}
+          <div className="pt-3 border-t border-[#2a3656] flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-[#2a3656] text-[#a5b4d4] hover:text-white rounded text-xs uppercase font-label-stamp"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 bg-[#1d4ed8] hover:bg-[#2563eb] text-white rounded text-xs font-headline-sm uppercase font-bold flex items-center gap-1.5 shadow-lg poster-shadow-dark transition-transform active:scale-95"
+            >
+              <Save className="w-4 h-4 text-[#f6c86a]" />
+              <span>{isNew ? 'CREATE & ACTIVATE COUPON' : 'SAVE COUPON CHANGES'}</span>
+            </button>
           </div>
         </form>
       </div>

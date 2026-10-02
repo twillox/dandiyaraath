@@ -280,12 +280,306 @@ export const FESTIVAL_SCHEDULE = [
   }
 ];
 
-// Active Promo Codes
-export const PROMO_CODES = {
-  'GARBA2026': { type: 'percent', value: 15, label: '15% Off Festival Special' },
-  'EARLYBIRD': { type: 'flat', value: 100, label: '₹100 Off Early Bird' },
-  'HYD10': { type: 'percent', value: 10, label: '10% Hyderabad Resident Special' }
-};
+// ==========================================
+// Active Coupons & Promo Code Store
+// ==========================================
+export const COUPONS_KEY = 'dandiya_coupons_list';
+
+export const INITIAL_COUPONS = [
+  {
+    id: 'coup-garba2026',
+    code: 'GARBA2026',
+    label: '15% Off Festival Special',
+    description: 'Flat 15% discount on all festival passes (up to ₹500 cap).',
+    discountType: 'percent', // 'percent' | 'flat'
+    discountValue: 15,
+    minSpend: 0,
+    maxDiscount: 500,
+    usageLimit: 500,
+    usedCount: 48,
+    expiryDate: '2026-10-31',
+    isActive: true,
+    createdAt: '2026-09-20T10:00:00.000Z'
+  },
+  {
+    id: 'coup-earlybird',
+    code: 'EARLYBIRD',
+    label: '₹100 Off Early Bird',
+    description: 'Flat ₹100 instant savings on pass bookings above ₹300.',
+    discountType: 'flat',
+    discountValue: 100,
+    minSpend: 300,
+    maxDiscount: 100,
+    usageLimit: 250,
+    usedCount: 92,
+    expiryDate: '2026-10-15',
+    isActive: true,
+    createdAt: '2026-09-22T12:00:00.000Z'
+  },
+  {
+    id: 'coup-hyd10',
+    code: 'HYD10',
+    label: '10% Hyderabad Resident Special',
+    description: '10% discount for Hyderabad twin cities garba lovers.',
+    discountType: 'percent',
+    discountValue: 10,
+    minSpend: 0,
+    maxDiscount: 350,
+    usageLimit: 1000,
+    usedCount: 31,
+    expiryDate: '2026-10-25',
+    isActive: true,
+    createdAt: '2026-09-25T14:30:00.000Z'
+  },
+  {
+    id: 'coup-vipfest',
+    code: 'VIPFEST',
+    label: '₹250 Off Premium Passes',
+    description: 'Instant ₹250 discount on VIP Couple and Group of 4 bookings.',
+    discountType: 'flat',
+    discountValue: 250,
+    minSpend: 800,
+    maxDiscount: 250,
+    usageLimit: 100,
+    usedCount: 14,
+    expiryDate: '2026-10-20',
+    isActive: true,
+    createdAt: '2026-09-28T09:15:00.000Z'
+  },
+  {
+    id: 'coup-dandiya50',
+    code: 'DANDIYA50',
+    label: '₹50 Off Student Special',
+    description: 'Instant ₹50 savings on any single pass checkout.',
+    discountType: 'flat',
+    discountValue: 50,
+    minSpend: 300,
+    maxDiscount: 50,
+    usageLimit: 300,
+    usedCount: 65,
+    expiryDate: '2026-10-30',
+    isActive: true,
+    createdAt: '2026-09-29T16:00:00.000Z'
+  }
+];
+
+export function getCoupons() {
+  const data = localStorage.getItem(COUPONS_KEY);
+  if (!data) {
+    localStorage.setItem(COUPONS_KEY, JSON.stringify(INITIAL_COUPONS));
+    return INITIAL_COUPONS;
+  }
+  try {
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_COUPONS;
+  } catch {
+    return INITIAL_COUPONS;
+  }
+}
+
+export function saveCoupons(coupons) {
+  localStorage.setItem(COUPONS_KEY, JSON.stringify(coupons));
+
+  if (isFirebaseConfigured() && db) {
+    try {
+      const docRef = doc(db, 'settings', 'coupons');
+      setDoc(docRef, { coupons }, { merge: true }).catch(console.warn);
+    } catch (e) {
+      console.warn('Firebase error on saveCoupons:', e);
+    }
+  }
+
+  notifyListeners();
+  return coupons;
+}
+
+export function addCoupon(newCoupon) {
+  const coupons = getCoupons();
+  const rawCode = (newCoupon.code || '').trim().toUpperCase();
+  if (!rawCode) throw new Error('Coupon code is required.');
+
+  // Check code uniqueness
+  const existing = coupons.find(c => c.code.toUpperCase() === rawCode);
+  if (existing) {
+    throw new Error(`A coupon with code "${rawCode}" already exists.`);
+  }
+
+  const id = newCoupon.id || `coup-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+  const created = {
+    id,
+    code: rawCode,
+    label: newCoupon.label?.trim() || `${rawCode} Coupon`,
+    description: newCoupon.description?.trim() || '',
+    discountType: newCoupon.discountType === 'percent' ? 'percent' : 'flat',
+    discountValue: Number(newCoupon.discountValue) || 0,
+    minSpend: Number(newCoupon.minSpend) || 0,
+    maxDiscount: newCoupon.maxDiscount ? Number(newCoupon.maxDiscount) : null,
+    usageLimit: newCoupon.usageLimit ? Number(newCoupon.usageLimit) : null,
+    usedCount: Number(newCoupon.usedCount) || 0,
+    expiryDate: newCoupon.expiryDate || '',
+    isActive: newCoupon.isActive !== false,
+    createdAt: new Date().toISOString()
+  };
+
+  const updated = [created, ...coupons];
+  saveCoupons(updated);
+  return created;
+}
+
+export function updateCoupon(couponId, updatedFields) {
+  const coupons = getCoupons();
+  const index = coupons.findIndex(c => c.id === couponId);
+  if (index === -1) return null;
+
+  if (updatedFields.code) {
+    const rawCode = updatedFields.code.trim().toUpperCase();
+    const duplicate = coupons.find(c => c.id !== couponId && c.code.toUpperCase() === rawCode);
+    if (duplicate) {
+      throw new Error(`Another coupon with code "${rawCode}" already exists.`);
+    }
+    updatedFields.code = rawCode;
+  }
+
+  coupons[index] = {
+    ...coupons[index],
+    ...updatedFields,
+    discountValue: updatedFields.discountValue !== undefined ? Number(updatedFields.discountValue) : coupons[index].discountValue,
+    minSpend: updatedFields.minSpend !== undefined ? Number(updatedFields.minSpend) : coupons[index].minSpend,
+    maxDiscount: updatedFields.maxDiscount !== undefined ? (updatedFields.maxDiscount ? Number(updatedFields.maxDiscount) : null) : coupons[index].maxDiscount,
+    usageLimit: updatedFields.usageLimit !== undefined ? (updatedFields.usageLimit ? Number(updatedFields.usageLimit) : null) : coupons[index].usageLimit,
+    updatedAt: new Date().toISOString()
+  };
+
+  saveCoupons(coupons);
+  return coupons[index];
+}
+
+export function deleteCoupon(couponId) {
+  const coupons = getCoupons();
+  const updated = coupons.filter(c => c.id !== couponId);
+  saveCoupons(updated);
+  return updated;
+}
+
+export function toggleCouponActive(couponId) {
+  const coupons = getCoupons();
+  const index = coupons.findIndex(c => c.id === couponId);
+  if (index === -1) return null;
+  coupons[index].isActive = !coupons[index].isActive;
+  coupons[index].updatedAt = new Date().toISOString();
+  saveCoupons(coupons);
+  return coupons[index];
+}
+
+export function incrementCouponUsage(codeOrId) {
+  if (!codeOrId) return;
+  const coupons = getCoupons();
+  const clean = String(codeOrId).trim().toUpperCase();
+  const index = coupons.findIndex(c => c.id === codeOrId || c.code.toUpperCase() === clean);
+  if (index === -1) return;
+  coupons[index].usedCount = (coupons[index].usedCount || 0) + 1;
+  saveCoupons(coupons);
+}
+
+export function validateAndApplyCoupon(codeQuery, subtotal = 0) {
+  if (!codeQuery || !String(codeQuery).trim()) {
+    return { valid: false, error: 'Please enter a coupon code.' };
+  }
+
+  const cleanCode = String(codeQuery).trim().toUpperCase();
+  const coupons = getCoupons();
+  const coupon = coupons.find(c => c.code.toUpperCase() === cleanCode);
+
+  if (!coupon) {
+    return {
+      valid: false,
+      error: `Coupon "${cleanCode}" does not exist. Please check the code.`
+    };
+  }
+
+  if (coupon.isActive === false) {
+    return {
+      valid: false,
+      error: `Coupon "${cleanCode}" is currently paused or inactive.`
+    };
+  }
+
+  // Check expiration
+  if (coupon.expiryDate) {
+    const expiry = new Date(coupon.expiryDate + 'T23:59:59');
+    if (new Date() > expiry) {
+      return {
+        valid: false,
+        error: `Coupon "${cleanCode}" expired on ${new Date(coupon.expiryDate).toLocaleDateString()}.`
+      };
+    }
+  }
+
+  // Check usage limit
+  if (coupon.usageLimit && (coupon.usedCount || 0) >= coupon.usageLimit) {
+    return {
+      valid: false,
+      error: `Coupon "${cleanCode}" has reached its maximum redemptions limit.`
+    };
+  }
+
+  // Check minimum spend
+  const minSpend = Number(coupon.minSpend) || 0;
+  if (subtotal < minSpend) {
+    return {
+      valid: false,
+      error: `Coupon requires a minimum order value of ₹${minSpend}. (Current cart: ₹${subtotal})`
+    };
+  }
+
+  // Calculate discount
+  let discountAmount = 0;
+  if (coupon.discountType === 'percent') {
+    discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
+    if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
+      discountAmount = coupon.maxDiscount;
+    }
+  } else {
+    discountAmount = Number(coupon.discountValue) || 0;
+  }
+
+  // Ensure discount does not exceed subtotal
+  discountAmount = Math.min(discountAmount, subtotal);
+  const finalTotal = Math.max(0, subtotal - discountAmount);
+
+  return {
+    valid: true,
+    coupon,
+    discountAmount,
+    finalTotal,
+    message: `Coupon "${coupon.code}" applied! You save ₹${discountAmount}.`
+  };
+}
+
+// Backwards compatibility export for PROMO_CODES
+export const PROMO_CODES = new Proxy({}, {
+  get(target, prop) {
+    if (typeof prop !== 'string') return undefined;
+    const coupons = getCoupons();
+    const found = coupons.find(c => c.code.toUpperCase() === prop.toUpperCase() && c.isActive !== false);
+    if (!found) return undefined;
+    return {
+      id: found.id,
+      code: found.code,
+      type: found.discountType,
+      value: found.discountValue,
+      label: found.label,
+      description: found.description,
+      minSpend: found.minSpend,
+      maxDiscount: found.maxDiscount
+    };
+  },
+  has(target, prop) {
+    if (typeof prop !== 'string') return false;
+    const coupons = getCoupons();
+    return coupons.some(c => c.code.toUpperCase() === prop.toUpperCase() && c.isActive !== false);
+  }
+});
 
 // Storage helper functions
 const BOOKINGS_KEY = 'dandiya_bookings_list';
@@ -1127,6 +1421,12 @@ export async function syncBookingsFromFirestore() {
     const tiersDoc = await getDoc(doc(db, 'settings', 'pass_tiers'));
     if (tiersDoc.exists() && tiersDoc.data().tiers) {
       localStorage.setItem(PASS_TIERS_KEY, JSON.stringify(tiersDoc.data().tiers));
+    }
+
+    // Sync coupons & promo codes
+    const couponsDoc = await getDoc(doc(db, 'settings', 'coupons'));
+    if (couponsDoc.exists() && couponsDoc.data()?.coupons) {
+      localStorage.setItem(COUPONS_KEY, JSON.stringify(couponsDoc.data().coupons));
     }
     notifyListeners();
   } catch (err) {

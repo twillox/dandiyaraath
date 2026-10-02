@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRight, Check, Tag, Sparkles, User, AlertCircle, Lock, Upload, Image, Clock, CheckCircle2, Copy, FileText, ChevronDown, QrCode, Download } from 'lucide-react';
-import { saveBooking, PROMO_CODES, getPaymentSettings, getPassTiers, subscribeToStore } from '../lib/storage';
+import {
+  saveBooking,
+  PROMO_CODES,
+  getPaymentSettings,
+  getPassTiers,
+  getCoupons,
+  validateAndApplyCoupon,
+  incrementCouponUsage,
+  subscribeToStore
+} from '../lib/storage';
 import confetti from 'canvas-confetti';
 
 export default function BookingDrawer({
@@ -190,14 +199,17 @@ export default function BookingDrawer({
     }
   };
 
-  // Dynamic Admin Payment Settings
+  // Dynamic Admin Payment Settings & Coupons
   const [paymentSettings, setPaymentSettings] = useState(getPaymentSettings());
+  const [coupons, setCoupons] = useState(getCoupons());
 
   useEffect(() => {
-    setPaymentSettings(getPaymentSettings());
-    const unsub = subscribeToStore(() => {
+    const refreshData = () => {
       setPaymentSettings(getPaymentSettings());
-    });
+      setCoupons(getCoupons());
+    };
+    refreshData();
+    const unsub = subscribeToStore(refreshData);
     return unsub;
   }, []);
 
@@ -212,11 +224,17 @@ export default function BookingDrawer({
   const subtotal = unitPrice * quantity;
   let discount = 0;
   if (appliedPromo) {
-    if (appliedPromo.type === 'percent') {
-      discount = Math.round((subtotal * appliedPromo.value) / 100);
+    if (subtotal < (appliedPromo.minSpend || 0)) {
+      discount = 0;
+    } else if (appliedPromo.discountType === 'percent') {
+      discount = Math.round((subtotal * appliedPromo.discountValue) / 100);
+      if (appliedPromo.maxDiscount && discount > appliedPromo.maxDiscount) {
+        discount = appliedPromo.maxDiscount;
+      }
     } else {
-      discount = appliedPromo.value;
+      discount = Number(appliedPromo.discountValue) || 0;
     }
+    discount = Math.min(discount, subtotal);
   }
   const totalAmount = Math.max(0, subtotal - discount);
 
@@ -256,15 +274,37 @@ export default function BookingDrawer({
   const [paymentMethod, setPaymentMethod] = useState('UPI_QR');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleApplyPromo = (e) => {
-    e.preventDefault();
+  const handleApplyPromo = (e, explicitCode) => {
+    if (e) e.preventDefault();
     setPromoError('');
-    const code = promoInput.trim().toUpperCase();
-    if (PROMO_CODES[code]) {
-      setAppliedPromo(PROMO_CODES[code]);
-    } else {
-      setPromoError('Invalid coupon. Try GARBA2026 or EARLYBIRD');
+    const code = (explicitCode || promoInput).trim().toUpperCase();
+    if (!code) {
+      setPromoError('Please enter a coupon code.');
+      return;
     }
+    const result = validateAndApplyCoupon(code, subtotal);
+    if (result.valid) {
+      setAppliedPromo({
+        id: result.coupon.id,
+        code: result.coupon.code,
+        label: result.coupon.label,
+        discountType: result.coupon.discountType,
+        discountValue: result.coupon.discountValue,
+        minSpend: result.coupon.minSpend,
+        maxDiscount: result.coupon.maxDiscount
+      });
+      setPromoInput(result.coupon.code);
+      setPromoError('');
+    } else {
+      setAppliedPromo(null);
+      setPromoError(result.error);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError('');
   };
 
   const handleCompleteOrder = () => {
@@ -319,8 +359,15 @@ export default function BookingDrawer({
           createdAt: new Date().toISOString(),
           checkedIn: false,
           checkedInAt: null,
-          gate: 'Main Entrance'
+          gate: 'Main Entrance',
+          couponCode: appliedPromo ? appliedPromo.code : null,
+          discountAmount: discount || 0,
+          originalSubtotal: subtotal
         };
+
+        if (appliedPromo && discount > 0) {
+          incrementCouponUsage(appliedPromo.id || appliedPromo.code);
+        }
 
         saveBooking(newBooking);
 
@@ -458,35 +505,93 @@ export default function BookingDrawer({
             </div>
 
             {/* Promo Code Box */}
-            <div className="p-3.5 bg-[#141a32] border border-[#2a3656] rounded space-y-2">
-              <span className="font-label-ticket text-xs uppercase text-[#a5b4d4] flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-[#38bdf8]" />
-                <span>HAVE A FESTIVAL PROMO CODE?</span>
-              </span>
+            <div className="p-3.5 bg-[#141a32] border border-[#2a3656] rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-label-ticket text-xs uppercase text-[#a5b4d4] flex items-center gap-1.5 font-bold">
+                  <Tag className="w-3.5 h-3.5 text-[#38bdf8]" />
+                  <span>FESTIVAL COUPON / PROMO CODE</span>
+                </span>
+                {appliedPromo && (
+                  <button
+                    type="button"
+                    onClick={handleRemovePromo}
+                    className="text-[10px] text-red-400 hover:text-red-300 font-label-stamp uppercase font-bold"
+                  >
+                    REMOVE
+                  </button>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="e.g. GARBA2026"
+                  placeholder="e.g. GARBA2026, EARLYBIRD"
                   value={promoInput}
-                  onChange={(e) => setPromoInput(e.target.value)}
-                  className="flex-1 bg-[#070d1e] border border-[#2a3656] px-3 py-1.5 text-xs text-white uppercase rounded focus:border-[#f6c86a]"
+                  onChange={(e) => {
+                    setPromoInput(e.target.value.toUpperCase());
+                    setPromoError('');
+                  }}
+                  className="flex-1 bg-[#070d1e] border border-[#2a3656] px-3 py-2 text-xs text-white font-mono uppercase tracking-wider rounded-lg focus:border-[#38bdf8] outline-none"
                 />
                 <button
                   type="button"
-                  onClick={handleApplyPromo}
-                  className="px-3.5 py-1.5 bg-[#1d4ed8] hover:bg-[#2563eb] text-white font-label-stamp text-xs uppercase font-bold rounded"
+                  onClick={(e) => handleApplyPromo(e)}
+                  className="px-4 py-2 bg-[#1d4ed8] hover:bg-[#2563eb] text-white font-label-stamp text-xs uppercase font-bold rounded-lg shadow transition-colors active:scale-95"
                 >
                   APPLY
                 </button>
               </div>
-              {appliedPromo && (
-                <div className="text-xs text-[#38bdf8] flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>{appliedPromo.label} Applied! (-₹{discount})</span>
+
+              {/* Clickable Quick Coupon Chips */}
+              {coupons.filter(c => c.isActive !== false).length > 0 && !appliedPromo && (
+                <div className="pt-1">
+                  <span className="text-[10px] text-slate-400 font-mono block mb-1.5">
+                    Available festival coupons (tap to apply):
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {coupons
+                      .filter(c => c.isActive !== false)
+                      .slice(0, 4)
+                      .map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => handleApplyPromo(null, c.code)}
+                          className="px-2 py-1 bg-[#0b1229] hover:bg-[#1d4ed8]/30 border border-[#38bdf8]/40 hover:border-[#38bdf8] text-[#38bdf8] rounded-md text-[10px] font-mono font-bold flex items-center gap-1 transition-all"
+                        >
+                          <Sparkles className="w-3 h-3 text-[#f6c86a]" />
+                          <span>{c.code}</span>
+                          <span className="text-[#f6c86a]">
+                            ({c.discountType === 'percent' ? `${c.discountValue}%` : `₹${c.discountValue}`} OFF)
+                          </span>
+                        </button>
+                      ))}
+                  </div>
                 </div>
               )}
+
+              {appliedPromo && (
+                <div className="p-2.5 bg-emerald-950/60 border border-emerald-500/60 rounded-lg text-xs text-emerald-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block">{appliedPromo.code}: {appliedPromo.label}</span>
+                      <span className="text-[10px] text-emerald-400/90 font-mono">
+                        {discount > 0 ? `Saved ₹${discount}/- on this pass booking!` : `Cart subtotal must be at least ₹${appliedPromo.minSpend} to activate`}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-sm text-[#f6c86a] shrink-0">
+                    -₹{discount}
+                  </span>
+                </div>
+              )}
+
               {promoError && (
-                <div className="text-xs text-red-400">{promoError}</div>
+                <div className="p-2 bg-red-950/50 border border-red-500/50 rounded-lg text-xs text-red-300 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  <span>{promoError}</span>
+                </div>
               )}
             </div>
 

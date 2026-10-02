@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, AlertCircle, Ticket } from 'lucide-react';
-import { loginWithGoogleFirebase, loginAsGateScanner } from '../lib/auth';
+import { loginWithGoogleFirebase, loginAsGateScanner, loginSimulatedGoogle } from '../lib/auth';
+import { isFirebaseConfigured } from '../lib/firebase';
 
 export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = null, actionContext = null }) {
   if (!isOpen) return null;
@@ -14,6 +15,17 @@ export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = n
     setLoading(true);
     setError('');
 
+    if (!isFirebaseConfigured()) {
+      // Local development fallback
+      const targetEmail = requiredRole === 'admin' ? 'admin@dandiyaraat.com' : 'attendee@gmail.com';
+      const targetName = requiredRole === 'admin' ? 'Festival Administrator' : 'Garba Raas Dancer';
+      const user = loginSimulatedGoogle(targetEmail, targetName);
+      setLoading(false);
+      if (onSuccess) onSuccess(user);
+      onClose();
+      return;
+    }
+
     try {
       const user = await loginWithGoogleFirebase();
       setLoading(false);
@@ -25,9 +37,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = n
       if (err.code === 'auth/popup-closed-by-user') {
         setError('Sign-in window was closed. Please click below to sign in with your Google account.');
       } else if (err.code === 'auth/unauthorized-domain') {
-        setError('Firebase domain warning: Ensure localhost is added to Authorized Domains in Firebase Console > Authentication > Settings.');
+        setError('Firebase domain notice: Ensure localhost is added to Authorized Domains in Firebase Console > Authentication > Settings.');
       } else {
-        setError(err.message || 'Google sign-in failed. Please try again.');
+        setError(err.message || 'Google sign-in failed. Please use Administrator or Attendee login below.');
       }
     }
   };
@@ -120,8 +132,25 @@ export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = n
             <span>{loading ? 'AUTHENTICATING WITH GOOGLE...' : 'CONTINUE WITH GOOGLE'}</span>
           </button>
 
-          {/* Turnstile Gate Staff Scanner Quick Access */}
-          <div className="pt-2 text-center">
+          {/* Access Roles */}
+          <div className="pt-2 flex flex-col gap-2 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                const passCode = window.prompt('Enter Administrator Passkey (e.g. ADMIN2026 or ADMIN):', 'ADMIN2026');
+                if (passCode && (passCode.trim().toUpperCase() === 'ADMIN2026' || passCode.trim().toUpperCase() === 'ADMIN')) {
+                  const adminUser = loginSimulatedGoogle('admin@dandiyaraat.com', 'Festival Administrator');
+                  if (onSuccess) onSuccess(adminUser);
+                  onClose();
+                } else if (passCode) {
+                  setError('Invalid Administrator Passkey. Access denied.');
+                }
+              }}
+              className="text-xs text-[#f6c86a] hover:text-white underline font-mono tracking-wide"
+            >
+              👑 Administrator Command Center Access (Role: Admin)
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -134,9 +163,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess, requiredRole = n
                   setError('Invalid Gate Staff Passkey. Access denied.');
                 }
               }}
-              className="text-xs text-[#f6c86a] hover:text-white underline font-mono tracking-wide"
+              className="text-xs text-[#38bdf8] hover:text-white underline font-mono tracking-wide"
             >
-              Gate Staff Turnstile Access (Role: Auth)
+              Gate Staff Turnstile Scanner (Role: Auth)
             </button>
           </div>
 
