@@ -282,12 +282,14 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
     }
   };
 
-  // Metrics
-  const totalTickets = bookings.reduce((sum, b) => sum + (b.quantity || 1), 0);
-  const totalRevenue = bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-  const checkedInCount = bookings.filter(b => b.checkedIn).length;
+  // Metrics - Only VERIFIED & PAID bookings count towards Gross Revenue and Valid Passes Sold
+  const verifiedBookings = bookings.filter(b => b.paymentStatus === 'VERIFIED' || b.paymentStatus === 'PAID');
+  const totalTickets = verifiedBookings.reduce((sum, b) => sum + (b.quantity || 1), 0);
+  const totalRevenue = verifiedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+  const checkedInCount = bookings.filter(b => b.checkedIn && b.paymentStatus !== 'REJECTED').length;
   const pendingVerificationCount = bookings.filter(b => b.paymentStatus === 'PENDING_VERIFICATION').length;
-  const verifiedCount = bookings.filter(b => b.paymentStatus === 'VERIFIED' || b.paymentStatus === 'PAID').length;
+  const verifiedCount = verifiedBookings.length;
+  const rejectedCount = bookings.filter(b => b.paymentStatus === 'REJECTED').length;
 
   // Payment Verification Actions
   const handleVerifyPayment = (bookingId) => {
@@ -517,7 +519,7 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
           <div className="bg-[#141a32] border-2 border-[#2a3656] p-4 rounded-xl poster-shadow-dark">
             <span className="font-label-stamp text-[10px] uppercase text-[#a5b4d4] block">GROSS REVENUE</span>
             <span className="font-display-hero text-3xl text-[#ffe8c0] block mt-1">₹{totalRevenue.toLocaleString()}/-</span>
-            <span className="font-body-sm text-[11px] text-emerald-400">100% Escrow Protected</span>
+            <span className="font-body-sm text-[11px] text-emerald-400">Verified & Collected</span>
           </div>
 
           <div className="bg-[#141a32] border-2 border-[#2a3656] p-4 rounded-xl poster-shadow-dark">
@@ -1222,7 +1224,11 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
 
                           {/* Gate Admission */}
                           <td className="p-3">
-                            {isPending ? (
+                            {isRejected ? (
+                              <span className="text-[10px] font-mono text-red-400 font-bold block bg-red-950/60 border border-red-800/80 px-2 py-0.5 rounded w-max">
+                                ⛔ DENIED (REJECTED)
+                              </span>
+                            ) : isPending ? (
                               <span className="text-[10px] font-mono text-amber-500/80 block">
                                 🔒 LOCKED (UNVERIFIED)
                               </span>

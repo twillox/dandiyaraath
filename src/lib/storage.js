@@ -394,6 +394,17 @@ export function updateBookingCheckIn(bookingIdOrRef, isCheckedIn = true, gate = 
   const index = bookings.findIndex(item => item.id === b.id);
   if (index === -1) return null;
 
+  // If rejected, reject admission attempt
+  if (isCheckedIn && bookings[index].paymentStatus === 'REJECTED') {
+    return {
+      ...bookings[index],
+      success: false,
+      alreadyUsed: false,
+      booking: bookings[index],
+      message: 'Booking has been REJECTED by admin! Admission denied.'
+    };
+  }
+
   // If already used and we are attempting to check in again
   if (isCheckedIn && bookings[index].checkedIn) {
     return {
