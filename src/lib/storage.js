@@ -496,6 +496,167 @@ export function updateBookingPaymentVerification(bookingId, status = 'VERIFIED',
   return bookings[index];
 }
 
+// =========================================================================
+// STALL REGISTRATION SYSTEM (Vendors, Food, Clothing, Dandiya, Brand Booths)
+// =========================================================================
+export const STALLS_KEY = 'dandiya_stall_applications_2026';
+
+export const INITIAL_STALLS = [
+  {
+    id: 'STL-HYD-10492',
+    brandName: 'Amdavadi Swad Farsan & Jalebi',
+    contactPerson: 'Jayesh Patel',
+    phone: '+919849021144',
+    email: 'jayesh.amdavadi@gmail.com',
+    stallCategory: 'Food & Snacks',
+    budgetRange: '₹35,000 - ₹50,000',
+    estimatedBudget: 45000,
+    productDescription: 'Authentic Gujarati Fafda, Jalebi, Khaman Dhokla, Handvo and live Sev Usal counter.',
+    powerRequired: true,
+    spaceRequired: '15x10 ft Food Stall',
+    status: 'CONTACTED',
+    callNotes: 'Spoke with Jayesh. Interested in corner spot near food court entrance. Needs 15A power connection.',
+    adminNotes: 'Tentative stall FC-04. Waiting for advance token.',
+    assignedStallNumber: 'FC-04',
+    createdAt: '2026-09-29T11:20:00.000Z',
+    updatedAt: '2026-10-01T15:30:00.000Z'
+  },
+  {
+    id: 'STL-HYD-10831',
+    brandName: 'Rangilo Raas Chaniya Choli Hub',
+    contactPerson: 'Kavita Dave',
+    phone: '+919988776655',
+    email: 'kavita.chaniyacholi@yahoo.com',
+    stallCategory: 'Traditional Wear & Costumes',
+    budgetRange: '₹25,000 - ₹35,000',
+    estimatedBudget: 30000,
+    productDescription: 'Designer Kutchi mirror-work Chaniya Cholis, Bandhani dupattas, Kediyu, and instant rental wear.',
+    powerRequired: false,
+    spaceRequired: '10x10 ft Retail Canopy',
+    status: 'PENDING_REVIEW',
+    callNotes: '',
+    adminNotes: '',
+    assignedStallNumber: '',
+    createdAt: '2026-10-01T09:40:00.000Z',
+    updatedAt: null
+  },
+  {
+    id: 'STL-HYD-11205',
+    brandName: 'Surat Handcrafted Wooden Dandiyas & Jewelry',
+    contactPerson: 'Bhavin Shah',
+    phone: '+919876543210',
+    email: 'bhavin.dandiya@gmail.com',
+    stallCategory: 'Dandiya Sticks & Jewelry',
+    budgetRange: '₹15,000 - ₹25,000',
+    estimatedBudget: 20000,
+    productDescription: 'LED light Dandiyas, Sheesham carved sticks, Oxidized silver jewelry, Ghunghroo bangles.',
+    powerRequired: false,
+    spaceRequired: '10x10 ft Retail Stall',
+    status: 'APPROVED',
+    callNotes: 'Called Bhavin. Token received. Assigned stall near main festival entrance.',
+    adminNotes: 'Confirmed Stall R-02. Entry passes for 3 stall staff issued.',
+    assignedStallNumber: 'R-02',
+    createdAt: '2026-09-28T16:15:00.000Z',
+    updatedAt: '2026-09-30T14:10:00.000Z'
+  }
+];
+
+export function getLocalStalls() {
+  const data = localStorage.getItem(STALLS_KEY);
+  if (!data) {
+    localStorage.setItem(STALLS_KEY, JSON.stringify(INITIAL_STALLS));
+    return INITIAL_STALLS;
+  }
+  try {
+    return JSON.parse(data);
+  } catch {
+    return INITIAL_STALLS;
+  }
+}
+
+export function saveStallApplication(applicationData) {
+  const stalls = getLocalStalls();
+  const randomCode = Math.floor(10000 + Math.random() * 90000);
+  const newStall = {
+    id: `STL-HYD-${randomCode}`,
+    brandName: (applicationData.brandName || '').trim(),
+    contactPerson: (applicationData.contactPerson || '').trim(),
+    phone: (applicationData.phone || '').trim(),
+    email: (applicationData.email || '').trim().toLowerCase(),
+    stallCategory: applicationData.stallCategory || 'Food & Snacks',
+    budgetRange: applicationData.budgetRange || '₹25,000 - ₹45,000',
+    estimatedBudget: Number(applicationData.estimatedBudget) || 25000,
+    productDescription: (applicationData.productDescription || '').trim(),
+    powerRequired: Boolean(applicationData.powerRequired),
+    spaceRequired: applicationData.spaceRequired || '10x10 ft Standard Booth',
+    status: 'PENDING_REVIEW', // PENDING_REVIEW | CONTACTED | APPROVED | REJECTED
+    callNotes: '',
+    adminNotes: '',
+    assignedStallNumber: '',
+    createdAt: new Date().toISOString(),
+    updatedAt: null
+  };
+
+  stalls.unshift(newStall);
+  localStorage.setItem(STALLS_KEY, JSON.stringify(stalls));
+
+  if (isFirebaseConfigured() && db) {
+    try {
+      const docRef = doc(db, 'stalls', newStall.id);
+      setDoc(docRef, newStall).catch(console.warn);
+    } catch (e) {
+      console.warn('Firebase stall save warning:', e);
+    }
+  }
+
+  notifyListeners();
+  return newStall;
+}
+
+export function updateStallDetails(stallId, updatedFields) {
+  const stalls = getLocalStalls();
+  const index = stalls.findIndex(s => s.id === stallId);
+  if (index === -1) return null;
+
+  stalls[index] = {
+    ...stalls[index],
+    ...updatedFields,
+    updatedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem(STALLS_KEY, JSON.stringify(stalls));
+
+  if (isFirebaseConfigured() && db) {
+    try {
+      const docRef = doc(db, 'stalls', stalls[index].id);
+      updateDoc(docRef, stalls[index]).catch(console.warn);
+    } catch (e) {
+      console.warn('Firebase stall update warning:', e);
+    }
+  }
+
+  notifyListeners();
+  return stalls[index];
+}
+
+export function deleteStallApplication(stallId) {
+  const stalls = getLocalStalls();
+  const updated = stalls.filter(s => s.id !== stallId);
+  localStorage.setItem(STALLS_KEY, JSON.stringify(updated));
+
+  if (isFirebaseConfigured() && db) {
+    try {
+      const docRef = doc(db, 'stalls', stallId);
+      deleteDoc(docRef).catch(console.warn);
+    } catch (e) {
+      console.warn('Firebase stall delete warning:', e);
+    }
+  }
+
+  notifyListeners();
+  return true;
+}
+
 // Inquiries / Messages
 export function getLocalInquiries() {
   const data = localStorage.getItem(INQUIRIES_KEY);

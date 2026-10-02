@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, Ticket, Calendar, ShieldCheck, MapPin, Sparkles, User, LogOut, ChevronDown, Lock } from 'lucide-react';
+import { Menu, X, Ticket, Calendar, ShieldCheck, MapPin, Sparkles, User, LogOut, ChevronDown, Lock, Store } from 'lucide-react';
 import { logout } from '../lib/auth';
 import { getFestivalContent } from '../lib/contentStore';
 
@@ -8,7 +8,8 @@ export default function Navbar({
   onNavigate,
   onOpenBooking,
   currentUser,
-  onOpenAuth
+  onOpenAuth,
+  onOpenStallRegistration
 }) {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
@@ -206,6 +207,16 @@ export default function Navbar({
             </button>
           )}
 
+          {/* Stall Registration Button */}
+          <button
+            onClick={onOpenStallRegistration}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-[#141a32] hover:bg-[#1a2342] border border-[#f6c86a]/60 hover:border-[#f6c86a] text-[11px] font-label-stamp uppercase font-bold text-[#ffe8c0] rounded-lg transition-all shadow-sm"
+            title="Book a Food or Retail Stall at Dandiya Raat 2026"
+          >
+            <Store className="w-3.5 h-3.5 text-[#f6c86a]" />
+            <span>STALL BOOKING</span>
+          </button>
+
           {/* Header Action: View My Passes when logged in, or Login to Book when guest */}
           {currentUser ? (
             <button
@@ -303,6 +314,20 @@ export default function Navbar({
                     <span className="text-xs">➔</span>
                   </button>
                 )}
+
+                <button
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    onOpenStallRegistration();
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg font-headline-sm text-lg uppercase text-[#ffe8c0] hover:bg-[#141a32] flex items-center justify-between border border-[#f6c86a]/40 mt-2"
+                >
+                  <span className="flex items-center gap-2">
+                    <Store className="w-4 h-4 text-[#f6c86a]" />
+                    <span>STALL REGISTRATION</span>
+                  </span>
+                  <span className="text-xs text-[#f6c86a]">➔</span>
+                </button>
               </nav>
             </div>
 

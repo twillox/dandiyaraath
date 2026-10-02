@@ -13,7 +13,10 @@ import {
   addPassTier,
   deletePassTier,
   updateBookingDetails,
-  deleteBooking
+  deleteBooking,
+  getLocalStalls,
+  updateStallDetails,
+  deleteStallApplication
 } from '../lib/storage';
 import {
   getFestivalContent,
@@ -63,7 +66,12 @@ import {
   Tag,
   CreditCard,
   Copy,
-  XCircle
+  XCircle,
+  Store,
+  PhoneCall,
+  MessageSquare,
+  Phone,
+  Zap
 } from 'lucide-react';
 
 export default function AdminPage({ currentUser, onOpenAuth }) {
@@ -176,14 +184,22 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
   // Edit Attendee Pass Modal State
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState(null);
 
+  // Stall Applications State
+  const [stalls, setStalls] = useState([]);
+  const [stallSearchQuery, setStallSearchQuery] = useState('');
+  const [stallFilterStatus, setStallFilterStatus] = useState('all');
+  const [selectedStallForModal, setSelectedStallForModal] = useState(null);
+
   useEffect(() => {
     setBookings(getLocalBookings());
     setPaymentSettings(getPaymentSettings());
     setPassTiers(getPassTiers());
+    setStalls(getLocalStalls());
     const unsubStore = subscribeToStore(() => {
       setBookings(getLocalBookings());
       setPaymentSettings(getPaymentSettings());
       setPassTiers(getPassTiers());
+      setStalls(getLocalStalls());
     });
     const unsubCms = subscribeToCms(() => setContent(getFestivalContent()));
     return () => {
@@ -436,6 +452,83 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
     document.body.removeChild(link);
   };
 
+  // Stall Application Metrics & Calculations
+  const pendingStallsCount = stalls.filter(s => s.status === 'PENDING_REVIEW').length;
+  const contactedStallsCount = stalls.filter(s => s.status === 'CONTACTED').length;
+  const approvedStallsCount = stalls.filter(s => s.status === 'APPROVED').length;
+
+  const filteredStalls = stalls.filter(s => {
+    const q = stallSearchQuery.toLowerCase().trim();
+    const matchQuery = !q || (
+      (s.ref && s.ref.toLowerCase().includes(q)) ||
+      (s.brandName && s.brandName.toLowerCase().includes(q)) ||
+      (s.contactPerson && s.contactPerson.toLowerCase().includes(q)) ||
+      (s.phone && s.phone.includes(q)) ||
+      (s.email && s.email.toLowerCase().includes(q)) ||
+      (s.category && s.category.toLowerCase().includes(q)) ||
+      (s.items && s.items.toLowerCase().includes(q)) ||
+      (s.budget && s.budget.toLowerCase().includes(q)) ||
+      (s.stallNumber && s.stallNumber.toLowerCase().includes(q))
+    );
+
+    if (!matchQuery) return false;
+    if (stallFilterStatus === 'pending') return s.status === 'PENDING_REVIEW';
+    if (stallFilterStatus === 'contacted') return s.status === 'CONTACTED';
+    if (stallFilterStatus === 'approved') return s.status === 'APPROVED';
+    if (stallFilterStatus === 'rejected') return s.status === 'REJECTED';
+    return true;
+  });
+
+  const handleUpdateStall = (stallId, updates) => {
+    const updated = updateStallDetails(stallId, updates);
+    setStalls(getLocalStalls());
+    if (selectedStallForModal && selectedStallForModal.id === stallId) {
+      setSelectedStallForModal(updated);
+    }
+    setAdminToast(`✅ Stall details for "${updated.brandName}" updated successfully!`);
+    setTimeout(() => setAdminToast(null), 4000);
+  };
+
+  const handleDeleteStall = (stallId, brandName) => {
+    const confirmed = window.confirm(
+      `⚠️ PERMANENTLY REMOVE STALL PROPOSAL?\n\nAre you sure you want to completely remove the application for "${brandName || 'this vendor'}"?\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+    deleteStallApplication(stallId);
+    setStalls(getLocalStalls());
+    if (selectedStallForModal && selectedStallForModal.id === stallId) {
+      setSelectedStallForModal(null);
+    }
+    setAdminToast(`🗑️ Stall proposal for "${brandName}" deleted.`);
+    setTimeout(() => setAdminToast(null), 4000);
+  };
+
+  const exportStallsToCSV = () => {
+    const headers = ['Ref', 'Brand Name', 'Contact Person', 'Phone', 'Email', 'Category', 'Budget Range', 'Items', 'Needs Power', 'Status', 'Stall Number', 'Admin Call Notes'];
+    const rows = filteredStalls.map(s => [
+      s.ref,
+      `"${s.brandName}"`,
+      `"${s.contactPerson}"`,
+      `"${s.phone}"`,
+      `"${s.email}"`,
+      `"${s.category}"`,
+      `"${s.budget}"`,
+      `"${(s.items || '').replace(/"/g, '""')}"`,
+      s.needsPower ? 'YES' : 'NO',
+      s.status,
+      `"${s.stallNumber || ''}"`,
+      `"${(s.adminNotes || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Dandiya_Stall_Vendors_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen bg-[#070d1e] text-[#dce1ff] pb-16">
       {/* Top Header */}
@@ -456,6 +549,7 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
             {[
               { id: 'cms', label: 'EDIT CONTENT & IMAGES' },
               { id: 'bookings', label: 'ATTENDEES & VERIFICATION', badge: pendingVerificationCount },
+              { id: 'stalls', label: 'STALL REGISTRATIONS', badge: pendingStallsCount },
               { id: 'payment', label: 'PAYMENT & UPI QR' },
               { id: 'tiers', label: 'PASS TIERS & PRICING' },
               { id: 'checkin', label: 'TURNSTILE SCAN' },
@@ -1350,6 +1444,274 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
           </div>
         )}
 
+        {/* TAB: STALL & VENDOR REGISTRATION MANAGEMENT */}
+        {activeTab === 'stalls' && (
+          <div className="bg-[#141a32] border-2 border-[#2a3656] rounded-xl p-5 sm:p-6 poster-shadow-dark space-y-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#2a3656] gap-3">
+              <div>
+                <h3 className="font-headline-sm text-2xl text-white uppercase flex items-center gap-2">
+                  <Store className="w-5 h-5 text-[#f6c86a]" />
+                  <span>STALL REGISTRATIONS & VENDOR NEGOTIATIONS</span>
+                </h3>
+                <p className="font-body-sm text-xs text-[#a5b4d4]">
+                  Review stall proposals, budget of investment, connect directly via phone call / WhatsApp, and assign stall lots.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportStallsToCSV}
+                  className="bg-[#0b1229] hover:bg-[#181e36] text-[#ffe8c0] border border-[#2a3656] px-4 py-2 text-xs uppercase font-label-stamp font-bold rounded flex items-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#38bdf8]" />
+                  <span>EXPORT VENDORS CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-[#0b1229] p-3.5 rounded-xl border border-[#2a3656]">
+                <span className="text-[10px] font-label-stamp text-[#a5b4d4] uppercase block">TOTAL PROPOSALS</span>
+                <span className="font-display-hero text-2xl text-white block mt-1">{stalls.length}</span>
+                <span className="text-[10px] text-slate-400">Applications received</span>
+              </div>
+              <div className={`p-3.5 rounded-xl border transition-colors ${
+                pendingStallsCount > 0 ? 'bg-amber-950/40 border-amber-500' : 'bg-[#0b1229] border-[#2a3656]'
+              }`}>
+                <span className="text-[10px] font-label-stamp text-[#f6c86a] uppercase font-bold block flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  <span>AWAITING CALL</span>
+                </span>
+                <span className="font-display-hero text-2xl text-[#f6c86a] block mt-1">{pendingStallsCount}</span>
+                <span className="text-[10px] text-amber-200/80">
+                  {pendingStallsCount > 0 ? 'Action: Call vendor now' : 'All applicants called'}
+                </span>
+              </div>
+              <div className="bg-[#0b1229] p-3.5 rounded-xl border border-[#2a3656]">
+                <span className="text-[10px] font-label-stamp text-[#38bdf8] uppercase font-bold block flex items-center gap-1">
+                  <PhoneCall className="w-3 h-3" />
+                  <span>IN TALKS / CONTACTED</span>
+                </span>
+                <span className="font-display-hero text-2xl text-[#38bdf8] block mt-1">{contactedStallsCount}</span>
+                <span className="text-[10px] text-slate-400">Under negotiation</span>
+              </div>
+              <div className="bg-[#0b1229] p-3.5 rounded-xl border border-[#2a3656]">
+                <span className="text-[10px] font-label-stamp text-emerald-400 uppercase font-bold block flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>APPROVED STALLS</span>
+                </span>
+                <span className="font-display-hero text-2xl text-emerald-400 block mt-1">{approvedStallsCount}</span>
+                <span className="text-[10px] text-slate-400">Allocated festival spots</span>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search by brand, contact person, phone, items, stall #..."
+                    value={stallSearchQuery}
+                    onChange={e => setStallSearchQuery(e.target.value)}
+                    className="bg-[#0b1229] border border-[#2a3656] pl-9 pr-3 py-1.5 text-xs text-white rounded w-72 focus:border-[#f6c86a]"
+                  />
+                </div>
+
+                <select
+                  value={stallFilterStatus}
+                  onChange={e => setStallFilterStatus(e.target.value)}
+                  className="bg-[#0b1229] border border-[#2a3656] px-3 py-1.5 text-xs text-white rounded font-mono"
+                >
+                  <option value="all">All Proposals ({stalls.length})</option>
+                  <option value="pending">⏳ Awaiting Call ({pendingStallsCount})</option>
+                  <option value="contacted">📞 In Discussion ({contactedStallsCount})</option>
+                  <option value="approved">✅ Approved ({approvedStallsCount})</option>
+                  <option value="rejected">❌ Rejected</option>
+                </select>
+              </div>
+
+              {pendingStallsCount > 0 && stallFilterStatus !== 'pending' && (
+                <button
+                  onClick={() => setStallFilterStatus('pending')}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded font-label-stamp text-xs uppercase font-black self-start sm:self-auto flex items-center gap-1 shadow-md"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>SHOW AWAITING CALL ONLY ({pendingStallsCount})</span>
+                </button>
+              )}
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#0b1229] text-[#ffe8c0] font-label-stamp uppercase border-b border-[#2a3656]">
+                  <tr>
+                    <th className="p-3">REF #</th>
+                    <th className="p-3">BRAND / STALL</th>
+                    <th className="p-3">CONTACT & CONNECT</th>
+                    <th className="p-3">BUDGET RANGE</th>
+                    <th className="p-3">STALL #</th>
+                    <th className="p-3">STATUS</th>
+                    <th className="p-3">ORGANIZER NOTES</th>
+                    <th className="p-3 text-right">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#2a3656]/50">
+                  {filteredStalls.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="p-8 text-center text-slate-400 font-mono">
+                        No stall proposals match the current search or status filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStalls.map((s) => {
+                      const cleanPhone = (s.phone || '').replace(/\D/g, '');
+                      const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(
+                        `Namaste ${s.contactPerson}, this is Dandiya Raat 2026 Festival Team regarding your stall application for "${s.brandName}". We would love to discuss stall space and setup.`
+                      )}`;
+
+                      return (
+                        <tr key={s.id} className="hover:bg-[#181e36] transition-colors">
+                          {/* Ref & Date */}
+                          <td className="p-3">
+                            <span className="font-mono font-bold text-[#f6c86a] block">{s.ref}</span>
+                            <span className="text-[10px] text-slate-400 font-mono block">
+                              {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : 'Recent'}
+                            </span>
+                          </td>
+
+                          {/* Brand & Type */}
+                          <td className="p-3 max-w-[200px]">
+                            <div className="font-bold text-white text-sm truncate">{s.brandName}</div>
+                            <div className="inline-block px-1.5 py-0.5 bg-[#1d4ed8]/30 border border-[#38bdf8]/60 text-[#38bdf8] text-[9px] uppercase font-bold rounded mt-0.5">
+                              {s.category}
+                            </div>
+                            {s.items && (
+                              <p className="text-[10px] text-slate-300 truncate mt-1" title={s.items}>
+                                {s.items}
+                              </p>
+                            )}
+                            {s.needsPower && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-300 font-mono mt-0.5">
+                                <Zap className="w-2.5 h-2.5" /> 15A Power
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Contact & Direct Connect */}
+                          <td className="p-3">
+                            <div className="font-bold text-white text-xs">{s.contactPerson}</div>
+                            <div className="text-slate-300 font-mono text-[11px] mt-0.5">{s.phone}</div>
+                            <div className="text-[10px] text-slate-400 font-mono truncate max-w-[140px]">{s.email}</div>
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <a
+                                href={`tel:${s.phone}`}
+                                className="px-2 py-1 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500 text-emerald-200 rounded text-[10px] font-bold flex items-center gap-1 transition-colors"
+                                title="Click to call vendor phone directly"
+                              >
+                                <PhoneCall className="w-3 h-3 text-emerald-400" />
+                                <span>CALL</span>
+                              </a>
+                              <a
+                                href={whatsappUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-1 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/70 text-[#25D366] rounded text-[10px] font-bold flex items-center gap-1 transition-colors"
+                                title="Chat on WhatsApp"
+                              >
+                                <MessageSquare className="w-3 h-3 text-[#25D366]" />
+                                <span>WHATSAPP</span>
+                              </a>
+                            </div>
+                          </td>
+
+                          {/* Investment Budget */}
+                          <td className="p-3">
+                            <span className="px-2 py-1 bg-[#0b1229] border border-[#f6c86a]/60 text-[#f6c86a] font-mono font-bold text-xs rounded block text-center whitespace-nowrap">
+                              {s.budget}
+                            </span>
+                            {s.finalPrice && (
+                              <span className="text-[10px] text-emerald-400 font-mono block mt-1 text-center font-bold">
+                                Agreed: {s.finalPrice}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Stall Number */}
+                          <td className="p-3">
+                            {s.stallNumber ? (
+                              <span className="px-2 py-1 bg-[#1d4ed8]/40 border border-[#38bdf8] text-[#38bdf8] font-mono font-bold text-xs rounded">
+                                {s.stallNumber}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 font-mono italic">
+                                Unassigned
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Status */}
+                          <td className="p-3">
+                            <span className={`px-2 py-1 text-[10px] font-label-stamp uppercase font-bold rounded border inline-block whitespace-nowrap ${
+                              s.status === 'APPROVED'
+                                ? 'bg-emerald-950 text-emerald-300 border-emerald-500'
+                                : s.status === 'CONTACTED'
+                                ? 'bg-sky-950 text-sky-300 border-sky-500'
+                                : s.status === 'REJECTED'
+                                ? 'bg-red-950 text-red-300 border-red-500'
+                                : 'bg-amber-950 text-amber-300 border-amber-500'
+                            }`}>
+                              {s.status === 'APPROVED' && '✅ Approved'}
+                              {s.status === 'CONTACTED' && '📞 In Talks'}
+                              {s.status === 'PENDING_REVIEW' && '⏳ Awaiting Call'}
+                              {s.status === 'REJECTED' && '❌ Rejected'}
+                            </span>
+                          </td>
+
+                          {/* Organizer Notes */}
+                          <td className="p-3 max-w-[160px]">
+                            {s.adminNotes ? (
+                              <p className="text-[11px] text-slate-300 line-clamp-2 leading-tight" title={s.adminNotes}>
+                                {s.adminNotes}
+                              </p>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 italic">No notes recorded</span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setSelectedStallForModal(s)}
+                                className="px-2.5 py-1.5 bg-[#181e36] hover:bg-[#20294a] text-white border border-[#2a3656] hover:border-[#38bdf8] text-[10px] font-label-stamp uppercase font-bold rounded flex items-center gap-1 transition-colors"
+                              >
+                                <Edit3 className="w-3 h-3 text-[#f6c86a]" />
+                                <span>MANAGE</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteStall(s.id, s.brandName)}
+                                className="text-[10px] font-label-stamp uppercase text-red-400 hover:text-white px-2 py-1.5 rounded border border-red-800/80 hover:bg-red-950 flex items-center gap-1 font-bold transition-colors"
+                                title="Delete stall proposal"
+                              >
+                                <Trash2 className="w-3 h-3 text-red-400" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* TAB: PAYMENT & UPI QR CODE CONFIGURATION */}
         {activeTab === 'payment' && (
           <div className="space-y-6">
@@ -2016,6 +2378,16 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
           onSave={handleSavePassTier}
         />
       )}
+
+      {/* MANAGE STALL APPLICATION & CALL LOG MODAL */}
+      {selectedStallForModal && (
+        <ManageStallModal
+          stall={selectedStallForModal}
+          onClose={() => setSelectedStallForModal(null)}
+          onSave={handleUpdateStall}
+          onDelete={handleDeleteStall}
+        />
+      )}
     </div>
   );
 }
@@ -2442,6 +2814,217 @@ function EditPassTierModal({ tier, isNew, onClose, onSave }) {
               <Save className="w-4 h-4 text-[#f6c86a]" />
               <span>{isNew ? 'CREATE PASS TIER' : 'SAVE TIER DETAILS'}</span>
             </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// SUBCOMPONENT: MANAGE STALL & CALL NOTES MODAL
+// ==========================================
+function ManageStallModal({ stall, onClose, onSave, onDelete }) {
+  const [status, setStatus] = useState(stall.status || 'PENDING_REVIEW');
+  const [stallNumber, setStallNumber] = useState(stall.stallNumber || '');
+  const [finalPrice, setFinalPrice] = useState(stall.finalPrice || '');
+  const [adminNotes, setAdminNotes] = useState(stall.adminNotes || '');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(stall.id, {
+      status,
+      stallNumber: stallNumber.trim(),
+      finalPrice: finalPrice.trim(),
+      adminNotes: adminNotes.trim()
+    });
+    onClose();
+  };
+
+  const cleanPhone = (stall.phone || '').replace(/\D/g, '');
+  const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(
+    `Namaste ${stall.contactPerson}, this is the Dandiya Raat 2026 organizing team regarding your stall registration for "${stall.brandName}". We would love to discuss your stall allotment.`
+  )}`;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-[#141a32] border-2 border-[#38bdf8] rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden poster-shadow-dark shadow-2xl">
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b border-[#2a3656] flex items-center justify-between bg-[#0b1229]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#1d4ed8]/30 border border-[#38bdf8] flex items-center justify-center text-[#38bdf8]">
+              <Store className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-headline-sm text-xl text-white uppercase tracking-wide">
+                MANAGE STALL APPLICATION
+              </h3>
+              <div className="flex items-center gap-2 text-xs font-mono text-[#a5b4d4]">
+                <span>REF: <strong className="text-[#f6c86a]">{stall.ref}</strong></span>
+                <span>•</span>
+                <span>BRAND: <strong className="text-white">{stall.brandName}</strong></span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-[#181e36] text-slate-400 hover:text-white flex items-center justify-center border border-[#2a3656]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4">
+          {/* Quick Contact & Direct Dial Bar */}
+          <div className="p-3.5 bg-[#0b1229] border border-[#2a3656] rounded-xl flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] text-slate-400 block font-label-stamp uppercase">APPLICANT CONTACT</span>
+              <span className="text-sm font-bold text-white block">{stall.contactPerson}</span>
+              <span className="text-xs text-[#38bdf8] font-mono block">{stall.phone} • {stall.email}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={`tel:${stall.phone}`}
+                className="px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500 text-emerald-200 rounded text-xs font-bold flex items-center gap-1.5 transition-colors"
+                title="Dial vendor directly"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
+                <span>CALL NOW</span>
+              </a>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/70 text-[#25D366] rounded text-xs font-bold flex items-center gap-1.5 transition-colors"
+                title="Open WhatsApp chat"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
+                <span>WHATSAPP</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Details Overview */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="bg-[#0b1229] p-3 rounded-lg border border-[#2a3656]">
+              <span className="text-[10px] font-label-stamp text-[#a5b4d4] uppercase block">STALL CATEGORY</span>
+              <span className="font-bold text-white uppercase truncate block mt-0.5">{stall.category}</span>
+            </div>
+            <div className="bg-[#0b1229] p-3 rounded-lg border border-[#2a3656]">
+              <span className="text-[10px] font-label-stamp text-[#a5b4d4] uppercase block">BUDGET OF INVESTMENT</span>
+              <span className="font-mono font-bold text-[#f6c86a] block mt-0.5">{stall.budget}</span>
+            </div>
+            <div className="bg-[#0b1229] p-3 rounded-lg border border-[#2a3656]">
+              <span className="text-[10px] font-label-stamp text-[#a5b4d4] uppercase block">POWER / ELECTRICITY</span>
+              <span className={`font-bold block mt-0.5 ${stall.needsPower ? 'text-amber-300' : 'text-slate-400'}`}>
+                {stall.needsPower ? '⚡ Needs 15A Power' : 'No Power Needed'}
+              </span>
+            </div>
+            <div className="bg-[#0b1229] p-3 rounded-lg border border-[#2a3656]">
+              <span className="text-[10px] font-label-stamp text-[#a5b4d4] uppercase block">SUBMITTED ON</span>
+              <span className="text-slate-300 font-mono block mt-0.5">
+                {stall.createdAt ? new Date(stall.createdAt).toLocaleDateString() : 'Recent'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-[#0b1229] p-3 rounded-lg border border-[#2a3656] text-xs">
+            <span className="text-[10px] font-label-stamp text-[#a5b4d4] uppercase block mb-1">PROPOSED ITEMS & OFFERINGS</span>
+            <p className="text-slate-200 leading-relaxed font-sans">{stall.items || 'General festive items/snacks'}</p>
+          </div>
+
+          {/* Organizer Discussion & Assignment */}
+          <div className="border-t border-[#2a3656] pt-4 space-y-3">
+            <h4 className="font-headline-sm text-sm text-[#f6c86a] uppercase">
+              ORGANIZER NEGOTIATION & ASSIGNMENT
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                  APPLICATION STATUS
+                </label>
+                <select
+                  value={status}
+                  onChange={e => setStatus(e.target.value)}
+                  className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-xs text-white rounded-lg focus:border-[#38bdf8] focus:outline-none"
+                >
+                  <option value="PENDING_REVIEW">⏳ Awaiting Call (PENDING)</option>
+                  <option value="CONTACTED">📞 In Discussion (CONTACTED)</option>
+                  <option value="APPROVED">✅ Approved & Confirmed (APPROVED)</option>
+                  <option value="REJECTED">❌ Rejected / Space Full (REJECTED)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                  ASSIGNED STALL # / SPOT
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. FOOD-04, RETAIL-02"
+                  value={stallNumber}
+                  onChange={e => setStallNumber(e.target.value)}
+                  className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-xs text-white font-mono rounded-lg focus:border-[#38bdf8] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                  AGREED RENT / TOKEN (₹)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. ₹35,000 (Advance: ₹10,000)"
+                  value={finalPrice}
+                  onChange={e => setFinalPrice(e.target.value)}
+                  className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-xs text-white font-mono rounded-lg focus:border-[#38bdf8] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-label-stamp uppercase text-[#a5b4d4] mb-1 font-bold">
+                ORGANIZER CALL & DISCUSSION NOTES
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Log discussion: e.g. Called owner on Oct 2. Agreed on corner spot near food court. Needs 15A socket for grill. Advance token ₹10,000 to be paid by 5th Oct."
+                value={adminNotes}
+                onChange={e => setAdminNotes(e.target.value)}
+                className="w-full bg-[#0b1229] border border-[#2a3656] p-2.5 text-xs text-white rounded-lg focus:border-[#38bdf8] focus:outline-none leading-relaxed"
+              />
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="pt-3 border-t border-[#2a3656] flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => onDelete(stall.id, stall.brandName)}
+              className="px-3 py-2 border border-red-800 bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-white rounded text-xs uppercase font-label-stamp font-bold flex items-center gap-1.5 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              <span>DELETE PROPOSAL</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-[#2a3656] text-[#a5b4d4] hover:text-white rounded text-xs uppercase font-label-stamp"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-[#1d4ed8] hover:bg-[#2563eb] text-white rounded text-xs font-headline-sm uppercase font-bold flex items-center gap-1.5 shadow-lg poster-shadow-dark"
+              >
+                <Save className="w-4 h-4 text-[#f6c86a]" />
+                <span>SAVE & UPDATE STALL</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

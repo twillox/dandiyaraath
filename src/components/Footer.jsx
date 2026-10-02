@@ -2,7 +2,7 @@ import React from 'react';
 import { MapPin, Phone, ShieldCheck, Ticket } from 'lucide-react';
 import { getFestivalContent } from '../lib/contentStore';
 
-export default function Footer({ onNavigate, onOpenBooking }) {
+export default function Footer({ onNavigate, onOpenBooking, onOpenStallRegistration }) {
   const festivalLogo = getFestivalContent()?.hero?.logoUrl ||
     'https://lh3.googleusercontent.com/aida-public/AB6AXuAI00QCRrCHNCzAlVp_VDwHI08h9CQNITKgSW79HORvT2-eYnY3tZAnfm1BhASPONdVvjuxGKTPnIkFiJpsOSSWrIGWMPOS2CLzsEnLFmtgRKSHuZJcSziCZJ-n4Kr_GnOOoPtgz4kv-aoXkb6yP8Vm3yPvzEyNDIiK2puAYzCpz2XpeY1sAbyPlmRKSf9UfUdXXQEJLoeOdOak3ts0VWXPiGiUuJbo1JohJVulkU7hEl3hhhFENScMR55NsVGFQCkrQoI';
 
@@ -30,7 +30,7 @@ export default function Footer({ onNavigate, onOpenBooking }) {
           <p className="text-xs text-[#a5b4d4]/70">Korremula Rd, Chowdhariguda, Hyderabad, Telangana 500088</p>
         </div>
 
-        <div className="flex flex-wrap gap-5 font-label-ticket text-xs text-[#a5b4d4] uppercase">
+        <div className="flex flex-wrap items-center gap-5 font-label-ticket text-xs text-[#a5b4d4] uppercase">
           <button onClick={() => { onNavigate('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-[#f6c86a]">
             HOME
           </button>
@@ -43,6 +43,14 @@ export default function Footer({ onNavigate, onOpenBooking }) {
           <button onClick={() => onNavigate('my-passes')} className="hover:text-[#f6c86a]">
             MY WALLET
           </button>
+          {onOpenStallRegistration && (
+            <button
+              onClick={onOpenStallRegistration}
+              className="text-[#f6c86a] hover:text-white font-bold flex items-center gap-1 border border-[#f6c86a]/40 bg-[#f6c86a]/10 px-2.5 py-1 rounded"
+            >
+              🎪 STALL REGISTRATION
+            </button>
+          )}
         </div>
       </div>
 

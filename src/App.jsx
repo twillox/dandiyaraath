@@ -5,6 +5,7 @@ import MobileStickyBar from './components/MobileStickyBar';
 import BookingDrawer from './components/BookingDrawer';
 import DigitalPassModal from './components/DigitalPassModal';
 import AuthModal from './components/AuthModal';
+import StallRegistrationModal from './components/StallRegistrationModal';
 
 import { getCurrentUser, subscribeToAuth, logout } from './lib/auth';
 import { getFestivalContent } from './lib/contentStore';
@@ -87,6 +88,7 @@ export default function App() {
   const [bookingDrawerOpen, setBookingDrawerOpen] = useState(false);
   const [selectedPass, setSelectedPass] = useState({ title: 'SINGLE PASS', price: 349 });
   const [activeDigitalPass, setActiveDigitalPass] = useState(null);
+  const [stallModalOpen, setStallModalOpen] = useState(false);
 
   const [pendingBooking, setPendingBooking] = useState(null);
   const [authActionContext, setAuthActionContext] = useState(null);
@@ -200,6 +202,7 @@ export default function App() {
         onOpenBooking={handleOpenBooking}
         currentUser={currentUser}
         onOpenAuth={() => handleOpenAuth()}
+        onOpenStallRegistration={() => setStallModalOpen(true)}
       />
 
       {/* Main Content Router */}
@@ -239,6 +242,7 @@ export default function App() {
       <Footer
         onNavigate={handleNavigate}
         onOpenBooking={handleOpenBooking}
+        onOpenStallRegistration={() => setStallModalOpen(true)}
       />
 
       {/* Mobile Sticky Quick Booking Bar (Hidden in wallet & admin) */}
@@ -258,6 +262,12 @@ export default function App() {
         onBookingComplete={handleBookingComplete}
         currentUser={currentUser}
         onOpenAuth={() => handleOpenAuth(null, 'booking')}
+      />
+
+      {/* Stall Registration Modal */}
+      <StallRegistrationModal
+        isOpen={stallModalOpen}
+        onClose={() => setStallModalOpen(false)}
       />
 
       {/* Newly Issued Digital Pass Modal */}
