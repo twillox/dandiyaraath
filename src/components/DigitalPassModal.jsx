@@ -10,7 +10,9 @@ import {
   ShieldCheck,
   Check,
   MapPin,
-  Calendar
+  Calendar,
+  AlertTriangle,
+  XCircle
 } from 'lucide-react';
 import TicketQR from './TicketQR';
 import { getFestivalContent } from '../lib/contentStore';
@@ -26,6 +28,7 @@ export default function DigitalPassModal({ booking, onClose }) {
     'https://lh3.googleusercontent.com/aida-public/AB6AXuAI00QCRrCHNCzAlVp_VDwHI08h9CQNITKgSW79HORvT2-eYnY3tZAnfm1BhASPONdVvjuxGKTPnIkFiJpsOSSWrIGWMPOS2CLzsEnLFmtgRKSHuZJcSziCZJ-n4Kr_GnOOoPtgz4kv-aoXkb6yP8Vm3yPvzEyNDIiK2puAYzCpz2XpeY1sAbyPlmRKSf9UfUdXXQEJLoeOdOak3ts0VWXPiGiUuJbo1JohJVulkU7hEl3hhhFENScMR55NsVGFQCkrQoI';
 
   const isPending = booking.paymentStatus === 'PENDING_VERIFICATION';
+  const isRejected = booking.paymentStatus === 'REJECTED';
   const isCheckedIn = booking.checkedIn === true;
 
   const qrPayload = JSON.stringify({
@@ -38,6 +41,10 @@ export default function DigitalPassModal({ booking, onClose }) {
   });
 
   const handleDownloadPdf = async () => {
+    if (isRejected) {
+      alert('This booking has been rejected. Entry pass cannot be downloaded.');
+      return;
+    }
     try {
       setDownloadingPdf(true);
       await exportPassToPdf(booking, booking.ref || booking.id, booking.holderName);
@@ -52,11 +59,17 @@ export default function DigitalPassModal({ booking, onClose }) {
   };
 
   const handlePrint = () => {
+    if (isRejected) {
+      alert('Rejected passes cannot be printed.');
+      return;
+    }
     window.print();
   };
 
   const handleShareWhatsApp = () => {
-    const text = isPending
+    const text = isRejected
+      ? `⚠️ My Dandiya Raat booking (${booking.ref || booking.id}) was marked as REJECTED.`
+      : isPending
       ? `⏳ My Dandiya Raat 2026 Pass Booking (${booking.ref}) is currently pending payment verification. Passes will be sent to my email upon admin approval!`
       : `🎟️ My Official Dandiya Raat 2026 Entry Pass!\nBooking Ref: ${booking.ref}\nTier: ${booking.passTitle}\nAttendee: ${booking.holderName}\nVenue: Narapally Cricket Ground, Hyderabad\nDate: 15 Oct 2026, 5 PM Onwards`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
@@ -74,7 +87,75 @@ export default function DigitalPassModal({ booking, onClose }) {
           <X className="w-5 h-5" />
         </button>
 
-        {isPending ? (
+        {isRejected ? (
+          /* ================= PAYMENT REJECTED / VOID VIEW ================= */
+          <div className="text-center py-2 space-y-4 animate-fadeIn">
+            <div className="w-16 h-16 rounded-full bg-red-500/15 border-2 border-red-500/60 flex items-center justify-center mx-auto text-red-500 shadow-lg">
+              <XCircle className="w-9 h-9" />
+            </div>
+
+            <div>
+              <span className="inline-block bg-red-950 text-red-300 border border-red-500/80 px-3 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider mb-2">
+                ⛔ PAYMENT REJECTED • PASS VOID
+              </span>
+              <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight uppercase font-headline-sm">
+                Pass Not Approved
+              </h3>
+              <p className="text-xs text-red-300 mt-1 leading-relaxed">
+                This booking has been rejected by the festival administrator. The turnstile entry pass and QR code have been revoked.
+              </p>
+            </div>
+
+            <div className="p-4 bg-[#140b0e] border border-red-900/60 rounded-xl text-left space-y-2 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-red-900/40">
+                <span className="text-slate-400 font-label-stamp uppercase text-[10px]">BOOKING REF</span>
+                <span className="font-mono font-bold text-red-400 text-sm">{booking.ref || booking.id}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-label-stamp uppercase text-[10px]">ATTENDEE</span>
+                <span className="font-bold text-white uppercase">{booking.holderName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-label-stamp uppercase text-[10px]">PASS TIER</span>
+                <span className="text-white font-medium">{booking.passTitle} × {booking.quantity || 1}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 font-label-stamp uppercase text-[10px]">TOTAL AMOUNT</span>
+                <span className="font-bold text-white font-mono">₹{booking.totalAmount}/-</span>
+              </div>
+              <div className="pt-2 border-t border-red-900/40">
+                <span className="text-red-400 font-label-stamp uppercase text-[10px] block font-bold">REASON</span>
+                <span className="text-xs text-red-200 mt-0.5 block leading-snug">
+                  {booking.adminNotes || 'Payment receipt/UTR could not be verified against festival bank records.'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-red-950/20 border border-red-900/40 rounded-xl text-[11px] text-red-300/90 text-left">
+              ⛔ <strong>Notice:</strong> Turnstiles at Narapally Cricket Ground will strictly reject this reference. No physical wristband will be issued.
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 bg-[#141a32] hover:bg-[#1a2342] text-white py-2.5 rounded-xl font-headline-sm text-xs uppercase tracking-wider font-bold transition-all border border-[#2a3656]"
+              >
+                CLOSE
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = `Hi Dandiya Raat Support, my booking ref ${booking.ref || booking.id} for ${booking.holderName} was marked rejected. Can you please review my transaction receipt?`;
+                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                className="flex-1 bg-emerald-700 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-headline-sm text-xs uppercase tracking-wider font-bold transition-all flex items-center justify-center gap-1.5 shadow"
+              >
+                <span>CONTACT SUPPORT</span>
+              </button>
+            </div>
+          </div>
+        ) : isPending ? (
           /* ================= PAYMENT PENDING / UNDER REVIEW VIEW ================= */
           <div className="text-center py-2 space-y-4">
             <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400 shadow">

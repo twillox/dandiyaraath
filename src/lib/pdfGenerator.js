@@ -13,6 +13,11 @@ import QRCode from 'qrcode';
  */
 export async function exportPassToPdf(booking, fallbackRef = 'PASS', fallbackHolder = 'Attendee') {
   try {
+    if (booking?.paymentStatus === 'REJECTED') {
+      alert('⚠️ Pass Rejected: This booking has been marked as REJECTED by festival administration. An entry pass cannot be downloaded.');
+      return false;
+    }
+
     const bookingRef = (booking?.ref || booking?.id || fallbackRef || 'DND-HYD-PASS').toUpperCase();
     const holderName = (booking?.holderName || fallbackHolder || 'FESTIVAL GUEST').toUpperCase();
     const passTitle = (booking?.passTitle || 'FESTIVAL PASS').toUpperCase();

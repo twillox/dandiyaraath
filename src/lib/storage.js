@@ -452,9 +452,13 @@ export function updateBookingPaymentVerification(bookingId, status = 'VERIFIED',
   bookings[index].verificationStatus = status;
   bookings[index].verifiedAt = status === 'VERIFIED' ? now : null;
   bookings[index].verifiedBy = adminEmail;
-  bookings[index].adminNotes = notes;
+  bookings[index].adminNotes = notes || (status === 'REJECTED' ? 'Payment rejected by festival administrator.' : '');
   bookings[index].mailSent = status === 'VERIFIED';
   bookings[index].mailSentAt = status === 'VERIFIED' ? now : null;
+  if (status === 'REJECTED') {
+    bookings[index].checkedIn = false;
+    bookings[index].checkedInAt = null;
+  }
 
   localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
 
@@ -466,9 +470,11 @@ export function updateBookingPaymentVerification(bookingId, status = 'VERIFIED',
         verificationStatus: status,
         verifiedAt: bookings[index].verifiedAt,
         verifiedBy: adminEmail,
-        adminNotes: notes,
+        adminNotes: bookings[index].adminNotes,
         mailSent: bookings[index].mailSent,
-        mailSentAt: bookings[index].mailSentAt
+        mailSentAt: bookings[index].mailSentAt,
+        checkedIn: bookings[index].checkedIn,
+        checkedInAt: bookings[index].checkedInAt
       }).catch(console.warn);
     } catch (e) {
       console.warn('Firebase update verification error:', e);

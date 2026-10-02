@@ -62,7 +62,8 @@ import {
   Upload,
   Tag,
   CreditCard,
-  Copy
+  Copy,
+  XCircle
 } from 'lucide-react';
 
 export default function AdminPage({ currentUser, onOpenAuth }) {
@@ -301,16 +302,26 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
     }
   };
 
-  const handleRejectPayment = (bookingId) => {
-    if (window.confirm('Are you sure you want to flag/reject this payment submission?')) {
-      const updated = updateBookingPaymentVerification(bookingId, 'REJECTED', currentUser?.email || 'admin@dandiyaraat.com', 'Payment receipt could not be verified against bank records.');
-      if (updated) {
-        setBookings(getLocalBookings());
-        setAdminToast(`⚠️ Payment marked as REJECTED for ${updated.holderName}.`);
-        setTimeout(() => setAdminToast(null), 5000);
-        if (selectedScreenshotModal && selectedScreenshotModal.id === bookingId) {
-          setSelectedScreenshotModal(null);
-        }
+  const handleRejectPayment = (bookingId, attendeeName = '') => {
+    const reason = window.prompt(
+      `⚠️ REJECT / REVOKE PASS${attendeeName ? ` for "${attendeeName}"` : ''}?\n\nEnter reason for rejection (or click OK for default):`,
+      'Payment receipt could not be verified against festival bank records.'
+    );
+    if (reason === null) return; // User cancelled
+
+    const finalReason = reason.trim() || 'Payment receipt could not be verified against festival bank records.';
+    const updated = updateBookingPaymentVerification(
+      bookingId,
+      'REJECTED',
+      currentUser?.email || 'admin@dandiyaraat.com',
+      finalReason
+    );
+    if (updated) {
+      setBookings(getLocalBookings());
+      setAdminToast(`⛔ Pass REJECTED & revoked for ${updated.holderName}. Entry invalidated.`);
+      setTimeout(() => setAdminToast(null), 5000);
+      if (selectedScreenshotModal && selectedScreenshotModal.id === bookingId) {
+        setSelectedScreenshotModal(null);
       }
     }
   };
@@ -1263,22 +1274,44 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleRejectPayment(b.id)}
-                                    className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-700 px-2 py-1 text-[10px] font-label-stamp uppercase rounded"
+                                    onClick={() => handleRejectPayment(b.id, b.holderName)}
+                                    className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-700 px-2 py-1 text-[10px] font-label-stamp uppercase rounded font-bold flex items-center gap-1"
                                     title="Reject invalid payment screenshot"
                                   >
-                                    REJECT
+                                    <XCircle className="w-3 h-3 text-red-400" />
+                                    <span>REJECT</span>
                                   </button>
                                 </>
                               ) : isVerified ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResendEmail(b)}
+                                    className="text-[10px] font-label-stamp uppercase text-[#38bdf8] hover:text-white px-2 py-1 rounded border border-[#2a3656] hover:bg-[#181e36] flex items-center gap-1 font-bold"
+                                    title="Resend entry ticket email"
+                                  >
+                                    <Mail className="w-3 h-3" />
+                                    <span>RESEND PASS</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectPayment(b.id, b.holderName)}
+                                    className="bg-red-950 hover:bg-red-900 text-red-300 hover:text-white border border-red-700 px-2 py-1 text-[10px] font-label-stamp uppercase rounded font-bold transition-colors flex items-center gap-1"
+                                    title="Accidentally verified? Click to reject and revoke this pass"
+                                  >
+                                    <XCircle className="w-3 h-3 text-red-400" />
+                                    <span>REJECT</span>
+                                  </button>
+                                </>
+                              ) : isRejected ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleResendEmail(b)}
-                                  className="text-[10px] font-label-stamp uppercase text-[#38bdf8] hover:text-white px-2 py-1 rounded border border-[#2a3656] hover:bg-[#181e36] flex items-center gap-1 font-bold"
-                                  title="Resend entry ticket email"
+                                  onClick={() => handleVerifyPayment(b.id)}
+                                  className="bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700 px-2 py-1 text-[10px] font-label-stamp uppercase rounded font-bold flex items-center gap-1"
+                                  title="Re-verify and re-issue pass"
                                 >
-                                  <Mail className="w-3 h-3" />
-                                  <span>RESEND PASS</span>
+                                  <Check className="w-3 h-3" />
+                                  <span>RE-APPROVE</span>
                                 </button>
                               ) : (
                                 <button
@@ -1910,10 +1943,11 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                 {selectedScreenshotModal.paymentStatus === 'PENDING_VERIFICATION' && (
                   <button
                     type="button"
-                    onClick={() => handleRejectPayment(selectedScreenshotModal.id)}
-                    className="px-4 py-2 bg-red-950 hover:bg-red-900 border border-red-700 text-red-300 rounded text-xs uppercase font-label-stamp font-bold"
+                    onClick={() => handleRejectPayment(selectedScreenshotModal.id, selectedScreenshotModal.holderName)}
+                    className="px-4 py-2 bg-red-950 hover:bg-red-900 border border-red-700 text-red-300 rounded text-xs uppercase font-label-stamp font-bold flex items-center gap-1.5"
                   >
-                    Reject Payment
+                    <XCircle className="w-3.5 h-3.5 text-red-400" />
+                    <span>Reject Payment</span>
                   </button>
                 )}
 
@@ -1927,16 +1961,25 @@ export default function AdminPage({ currentUser, onOpenAuth }) {
                     <span>✓ VERIFY PAYMENT & SEND PASS TO EMAIL</span>
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-emerald-400 font-label-stamp text-xs flex items-center gap-1 font-bold">
                       <CheckCircle2 className="w-4 h-4" /> VERIFIED & PASS DISPATCHED
                     </span>
                     <button
                       type="button"
                       onClick={() => handleResendEmail(selectedScreenshotModal)}
-                      className="px-3 py-1.5 bg-[#1d4ed8] hover:bg-[#2563eb] text-white rounded text-xs font-label-stamp uppercase flex items-center gap-1"
+                      className="px-3 py-1.5 bg-[#1d4ed8] hover:bg-[#2563eb] text-white rounded text-xs font-label-stamp uppercase flex items-center gap-1 font-bold"
                     >
                       <Mail className="w-3.5 h-3.5" /> Resend Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRejectPayment(selectedScreenshotModal.id, selectedScreenshotModal.holderName)}
+                      className="px-3 py-1.5 bg-red-950 hover:bg-red-900 border border-red-700 text-red-300 hover:text-white rounded text-xs font-label-stamp uppercase font-bold flex items-center gap-1.5 transition-colors"
+                      title="Accidentally verified? Click to reject and revoke"
+                    >
+                      <XCircle className="w-3.5 h-3.5 text-red-400" />
+                      <span>REJECT / REVOKE PASS</span>
                     </button>
                   </div>
                 )}

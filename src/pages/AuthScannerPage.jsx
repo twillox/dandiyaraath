@@ -260,8 +260,22 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
       return;
     }
 
-    // 2. CHECK PAYMENT STATUS
-    if (booking.paymentStatus === 'PENDING_VERIFICATION' || booking.paymentStatus === 'REJECTED') {
+    // 2. CHECK PAYMENT STATUS (REJECTED vs PENDING)
+    if (booking.paymentStatus === 'REJECTED') {
+      if (soundEnabled) playSound('invalid');
+      try { navigator.vibrate?.([400, 100, 400]); } catch {}
+
+      setScanResult({
+        type: 'REJECTED_PAYMENT',
+        booking: booking,
+        rawQuery: code,
+        timestamp: new Date().toLocaleTimeString()
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    if (booking.paymentStatus === 'PENDING_VERIFICATION') {
       if (soundEnabled) playSound('warning');
       try { navigator.vibrate?.([150, 100, 150]); } catch {}
 
@@ -670,7 +684,56 @@ export default function AuthScannerPage({ currentUser, onSignOut }) {
                 </div>
               )}
 
-              {/* 3. PENDING PAYMENT VERIFICATION */}
+              {/* 3. REJECTED PAYMENT / REVOKED PASS */}
+              {scanResult.type === 'REJECTED_PAYMENT' && (
+                <div className="flex-1 flex flex-col justify-center text-center space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-red-600/20 border-2 border-red-500 flex items-center justify-center mx-auto text-red-500 animate-bounce">
+                    <XCircle className="w-10 h-10" />
+                  </div>
+
+                  <div>
+                    <span className="bg-red-600 text-white font-mono text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">
+                      ⛔ ENTRY DENIED • PASS REJECTED
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black font-headline-sm uppercase text-red-400 mt-2 tracking-tight">
+                      PAYMENT REJECTED!
+                    </h2>
+                    <p className="text-xs text-red-200 mt-1 font-bold">
+                      This ticket was flagged and rejected by festival admin. DO NOT ADMIT.
+                    </p>
+                  </div>
+
+                  <div className="bg-[#14080a] border-2 border-red-600/70 rounded-xl p-3.5 text-left text-xs space-y-2 max-w-sm mx-auto w-full shadow-2xl">
+                    <div className="flex justify-between items-center pb-1.5 border-b border-red-900/60">
+                      <span className="text-red-300 font-label-stamp uppercase text-[10px]">ATTENDEE:</span>
+                      <span className="font-bold text-white uppercase truncate max-w-[170px]">
+                        {scanResult.booking?.holderName}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-red-300 font-label-stamp uppercase text-[10px]">PASS TIER:</span>
+                      <span className="font-medium text-white">
+                        {scanResult.booking?.passTitle} (x{scanResult.booking?.quantity || 1})
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-red-300 font-label-stamp uppercase text-[10px]">REJECTION REASON:</span>
+                      <span className="font-medium text-red-300 text-right text-[11px] max-w-[200px] truncate">
+                        {scanResult.booking?.adminNotes || 'Payment verification failed'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1.5 border-t border-red-900/60 font-mono text-[11px]">
+                      <span className="text-slate-400">BOOKING REF:</span>
+                      <span className="font-bold text-red-400">{scanResult.booking?.ref || scanResult.booking?.id}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. PENDING PAYMENT VERIFICATION */}
               {scanResult.type === 'PENDING_PAYMENT' && (
                 <div className="flex-1 flex flex-col justify-center text-center space-y-3">
                   <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center mx-auto text-amber-400">

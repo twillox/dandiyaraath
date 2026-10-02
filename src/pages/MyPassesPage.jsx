@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getLocalBookings, subscribeToStore } from '../lib/storage';
-import { Ticket, ArrowRight, Share2, CheckCircle2, AlertCircle, Clock, Mail, LogIn, Plus, Download } from 'lucide-react';
+import { Ticket, ArrowRight, Share2, CheckCircle2, AlertCircle, Clock, Mail, LogIn, Plus, Download, XCircle, AlertTriangle } from 'lucide-react';
 import DigitalPassModal from '../components/DigitalPassModal';
 import { exportPassToPdf } from '../lib/pdfGenerator';
 
@@ -115,12 +115,16 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
           <div className="space-y-3.5">
             {displayedBookings.map((b) => {
               const isPending = b.paymentStatus === 'PENDING_VERIFICATION';
+              const isRejected = b.paymentStatus === 'REJECTED';
+              const isVerified = b.paymentStatus === 'VERIFIED' || b.paymentStatus === 'PAID';
 
               return (
                 <div
                   key={b.id}
                   className={`rounded-2xl border transition-all overflow-hidden shadow-lg ${
-                    isPending
+                    isRejected
+                      ? 'bg-gradient-to-b from-[#1c0b0e] to-[#0d0507] border-red-500/50'
+                      : isPending
                       ? 'bg-gradient-to-b from-[#111833] to-[#090e21] border-amber-500/40'
                       : 'bg-gradient-to-b from-[#131d3d] to-[#0a1024] border-[#2a3656]'
                   }`}
@@ -128,7 +132,9 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
                   {/* Card Top Row: Tier badge + Status Pill */}
                   <div className="p-4 pb-2.5 flex items-center justify-between border-b border-[#2a3656]/40">
                     <div className="flex items-center gap-2">
-                      <span className="bg-[#1d4ed8] text-white text-[10px] font-label-stamp uppercase font-bold px-2 py-0.5 rounded">
+                      <span className={`text-[10px] font-label-stamp uppercase font-bold px-2 py-0.5 rounded ${
+                        isRejected ? 'bg-red-900 text-red-200' : 'bg-[#1d4ed8] text-white'
+                      }`}>
                         {b.passTitle} {b.quantity > 1 ? `× ${b.quantity}` : ''}
                       </span>
                       <span className="font-mono text-xs font-bold text-[#f6c86a]">
@@ -137,7 +143,12 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
                     </div>
 
                     <div>
-                      {isPending ? (
+                      {isRejected ? (
+                        <span className="bg-red-950 text-red-300 border border-red-500/70 px-2 py-0.5 text-[10px] font-label-stamp uppercase font-bold rounded-full flex items-center gap-1 shadow">
+                          <XCircle className="w-2.5 h-2.5 text-red-400" />
+                          <span>REJECTED</span>
+                        </span>
+                      ) : isPending ? (
                         <span className="bg-amber-950/80 text-amber-300 border border-amber-500/60 px-2 py-0.5 text-[10px] font-label-stamp uppercase font-bold rounded-full flex items-center gap-1">
                           <Clock className="w-2.5 h-2.5 text-amber-400" />
                           <span>IN REVIEW</span>
@@ -181,6 +192,17 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
                       </div>
                     </div>
 
+                    {/* Short notice for rejected status */}
+                    {isRejected && (
+                      <div className="p-2.5 bg-red-950/40 border border-red-500/40 rounded-lg flex items-start gap-2 text-left">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                        <div className="text-[10px] text-red-200 leading-tight">
+                          <span className="font-bold text-red-300 block mb-0.5">Booking Rejected / Pass Inactive</span>
+                          {b.adminNotes || 'Payment verification failed against bank records. Entry pass revoked.'}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Short reassurance notice for pending status */}
                     {isPending && (
                       <div className="p-2 bg-amber-950/20 border border-amber-500/25 rounded-lg flex items-center gap-2 text-left">
@@ -196,33 +218,53 @@ export default function MyPassesPage({ onOpenBooking, currentUser, onOpenAuth })
                   <div className="p-4 pt-0 flex items-center gap-2">
                     <button
                       onClick={() => setSelectedPassForModal(b)}
-                      className="flex-1 bg-[#1d4ed8] hover:bg-[#2563eb] text-white py-2 px-3 text-xs uppercase font-label-stamp font-bold rounded-lg flex items-center justify-center gap-1.5 shadow transition-all active:scale-[0.99]"
+                      className={`flex-1 py-2 px-3 text-xs uppercase font-label-stamp font-bold rounded-lg flex items-center justify-center gap-1.5 shadow transition-all active:scale-[0.99] ${
+                        isRejected
+                          ? 'bg-red-950 hover:bg-red-900 border border-red-700 text-red-200'
+                          : 'bg-[#1d4ed8] hover:bg-[#2563eb] text-white'
+                      }`}
                     >
-                      <Ticket className="w-3.5 h-3.5 text-[#f6c86a]" />
-                      <span>{isPending ? 'VIEW PASS DETAILS' : 'VIEW TICKET & QR'}</span>
+                      {isRejected ? (
+                        <>
+                          <XCircle className="w-3.5 h-3.5 text-red-400" />
+                          <span>VIEW REJECTION DETAILS</span>
+                        </>
+                      ) : isPending ? (
+                        <>
+                          <Ticket className="w-3.5 h-3.5 text-[#f6c86a]" />
+                          <span>VIEW PASS DETAILS</span>
+                        </>
+                      ) : (
+                        <>
+                          <Ticket className="w-3.5 h-3.5 text-[#f6c86a]" />
+                          <span>VIEW TICKET & QR</span>
+                        </>
+                      )}
                       <ArrowRight className="w-3 h-3" />
                     </button>
 
-                    {!isPending && (
-                      <button
-                        onClick={() => exportPassToPdf(b)}
-                        className="p-2 bg-[#141a32] border border-[#2a3656] hover:border-[#f6c86a] text-[#f6c86a] hover:text-white rounded-lg transition-colors shrink-0"
-                        title="Download Pass as PDF"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    {isVerified && !isRejected && (
+                      <>
+                        <button
+                          onClick={() => exportPassToPdf(b)}
+                          className="p-2 bg-[#141a32] border border-[#2a3656] hover:border-[#f6c86a] text-[#f6c86a] hover:text-white rounded-lg transition-colors shrink-0"
+                          title="Download Pass as PDF"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
 
-                    <button
-                      onClick={() => {
-                        const text = `🎟️ Dandiya Raat 2026 Ticket\nHolder: ${b.holderName}\nRef: ${b.ref || b.id}\nTier: ${b.passTitle}\nVenue: Narapally Cricket Ground`;
-                        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-                      }}
-                      className="p-2 bg-[#0b1229] border border-[#2a3656] hover:border-emerald-500 text-emerald-400 rounded-lg transition-colors shrink-0"
-                      title="Share Pass on WhatsApp"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                    </button>
+                        <button
+                          onClick={() => {
+                            const text = `🎟️ Dandiya Raat 2026 Ticket\nHolder: ${b.holderName}\nRef: ${b.ref || b.id}\nTier: ${b.passTitle}\nVenue: Narapally Cricket Ground`;
+                            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                          }}
+                          className="p-2 bg-[#0b1229] border border-[#2a3656] hover:border-emerald-500 text-emerald-400 rounded-lg transition-colors shrink-0"
+                          title="Share Pass on WhatsApp"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               );
